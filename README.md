@@ -773,6 +773,184 @@ FEATURE_STRIPE_ENABLED=false  # これが false の間は /pricing にリダイ�
 
 ---
 
+## 🧭 ナビゲーション構造
+
+### **グローバルナビゲーション**
+
+```
+記事 / 医療政策 / 実装（医療DX） / AI・データ活用 / 検索 / About
+```
+
+**視覚的階層:**
+- **主軸（濃色）**: 記事、検索、About
+  - `text-gray-900`、`font-medium`、`text-[15px]`
+- **テーマ軸（薄色）**: 医療政策、実装（医療DX）、AI・データ活用
+  - `text-gray-500`、通常ウェイト、`text-[14px]`
+
+**実装例:**
+
+```tsx
+<nav className="flex items-center gap-6">
+  {/* 主軸 */}
+  <Link href="/news" className="text-gray-900 hover:text-black font-medium text-[15px]">
+    記事
+  </Link>
+
+  {/* テーマ軸 */}
+  <Link href="/topics/policy" className="text-gray-500 hover:text-gray-800 text-[14px]">
+    医療政策
+  </Link>
+  <Link href="/topics/dx" className="text-gray-500 hover:text-gray-800 text-[14px]">
+    実装（医療DX）
+  </Link>
+  <Link href="/topics/ai" className="text-gray-500 hover:text-gray-800 text-[14px]">
+    AI・データ活用
+  </Link>
+
+  {/* 主軸 */}
+  <Link href="/search" className="text-gray-900 hover:text-black font-medium text-[15px]">
+    検索
+  </Link>
+  <Link href="/about" className="text-gray-900 hover:text-black font-medium text-[15px]">
+    About
+  </Link>
+</nav>
+```
+
+### **カテゴリ体系（3分類）**
+
+#### **1. `'policy'` - 医療政策**
+- 診療報酬改定、中医協、地域医療構想、医療保険制度、かかりつけ医機能など
+- 表示名: 「医療政策」
+- テーマカラー: 青系（`bg-blue-50 text-blue-700 ring-1 ring-blue-200`）
+
+#### **2. `'dx'` - 医療DX実装**
+- 電子カルテ標準化、PHR、オンライン診療、オンライン資格確認、セキュリティなど
+- **AI・データ活用を含む**（`category='dx' + tags=['AI']` で管理）
+- 表示名: 「実装（医療DX）」
+- テーマカラー: 緑系（`bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200`）
+
+#### **3. `'other'` - その他**
+- 上記に該当しない記事
+- デフォルト値
+
+**注意:**
+- AI・データ活用は独立したカテゴリではなく、`'dx'` のサブセット
+- `/topics/ai` ページでは `category='dx' AND 'AI' IN tags` でフィルタ表示
+
+### **主要ページルーティング**
+
+| URL | 説明 | データ取得ロジック |
+|-----|------|------------------|
+| `/` | トップページ | 最新記事10本 + 固定Topics 3本 |
+| `/news` | 記事一覧（全体） | 全カテゴリの記事、ページネーション |
+| `/news/[slug]` | 記事詳細 | 個別記事 + ペイウォール判定 |
+| `/topics` | 特集ハブ | Topics一覧（priority順） |
+| `/topics/policy` | 医療政策LP | `category='policy'` の記事 |
+| `/topics/dx` | 医療DX LP | `category='dx'` の記事 |
+| `/topics/ai` | AI・データ活用LP | `category='dx' AND 'AI' IN tags` |
+| `/topics/[slug]` | その他の特集 | 任意のTopicとその記事 |
+| `/search` | 検索ページ | PostgreSQL全文検索 |
+| `/about` | サイト概要 | 静的ページ |
+
+### **カテゴリチップ実装**
+
+記事カードやヘッダーに表示するカテゴリラベル:
+
+```tsx
+// components/CategoryChip.tsx
+export function CategoryChip({ category }: { category: 'policy' | 'dx' | 'other' }) {
+  const config = {
+    policy: {
+      label: '医療政策',
+      className: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+    },
+    dx: {
+      label: '実装（医療DX）',
+      className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+    },
+    other: {
+      label: 'その他',
+      className: 'bg-gray-100 text-gray-700 ring-1 ring-gray-200'
+    }
+  }
+
+  const { label, className } = config[category]
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ${className}`}>
+      {label}
+    </span>
+  )
+}
+```
+
+### **SEO強化施策**
+
+#### **パンくずリスト**
+
+```tsx
+// 記事詳細ページ (/news/[slug])
+<nav aria-label="Breadcrumb">
+  <ol className="flex items-center gap-2">
+    <li><Link href="/">ホーム</Link></li>
+    <li>/</li>
+    <li><Link href="/news">記事</Link></li>
+    <li>/</li>
+    <li aria-current="page">{post.title}</li>
+  </ol>
+</nav>
+
+{/* 構造化データ */}
+<script type="application/ld+json">
+  {JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://yourdomain.com/" },
+      { "@type": "ListItem", "position": 2, "name": "記事", "item": "https://yourdomain.com/news" },
+      { "@type": "ListItem", "position": 3, "name": post.title }
+    ]
+  })}
+</script>
+```
+
+#### **CollectionPage 構造化データ**
+
+```tsx
+// Topics LP (/topics/policy, /topics/dx, /topics/ai)
+<script type="application/ld+json">
+  {JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": "医療政策",
+    "description": "診療報酬改定、中医協の議論、地域医療構想など",
+    "url": "https://yourdomain.com/topics/policy",
+    "mainEntity": {
+      "@type": "ItemList",
+      "itemListElement": posts.map((post, i) => ({
+        "@type": "ListItem",
+        "position": i + 1,
+        "url": `https://yourdomain.com/news/${post.slug}`
+      }))
+    }
+  })}
+</script>
+```
+
+### **アクセシビリティ要件**
+
+- **コントラスト比**: WCAG AA 基準（4.5:1以上）
+  - 濃色ナビ: `text-gray-900` (16.94:1)
+  - 薄色ナビ: `text-gray-500` (4.71:1) ✅
+- **キーボード操作**: すべてのナビリンクが Tab/Enter で操作可能
+- **スクリーンリーダー**: `aria-current="page"` でアクティブページを明示
+- **Lighthouse スコア**: Accessibility 90点以上
+
+詳細は `REQUIREMENTS.md` v2.1 の「15. ナビゲーション・情報アーキテクチャ」参照。
+
+---
+
 ## 📚 ドキュメント
 
 - **技術要件書**: `REQUIREMENTS.md` - 全機能の詳細仕様

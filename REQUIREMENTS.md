@@ -1,4 +1,4 @@
-# ニュース集約ブログ 技術要件書 v2.0（最終版）
+# ニュース集約ブログ 技術要件書 v2.1
 
 最終更新: 2025-10-05 JST
 
@@ -171,7 +171,7 @@ model Post {
   title    String
   body     String   // MDX/Markdown
   summary  String?
-  category String   @default("other") // 'policy' | 'dx' | 'other'
+  category String   @default("other") // 'policy' | 'dx' | 'other' (注: AIは独立カテゴリではなく、dx + tags=['AI']で管理)
   tags     String[]
 
   publishAt DateTime?
@@ -208,6 +208,30 @@ model Post {
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 ```
+
+#### **カテゴリ体系の詳細定義**
+
+Post.category は以下の3値のいずれか:
+
+- **`'policy'`**: 医療政策
+  - 診療報酬改定、中医協、地域医療構想、医療保険制度、かかりつけ医機能など
+  - ナビ表示: 「医療政策」
+  - テーマカラー: 青系（例: `bg-blue-50 text-blue-700`）
+
+- **`'dx'`**: 医療DX実装
+  - 電子カルテ標準化、PHR、オンライン診療、オンライン資格確認、セキュリティ、AI・データ活用含む
+  - ナビ表示: 「実装（医療DX）」
+  - テーマカラー: 緑系（例: `bg-emerald-50 text-emerald-700`）
+  - **注意**: AI・データ活用は `category='dx'` + `tags` に `'AI'` を含めることで管理
+
+- **`'other'`**: その他
+  - 上記に該当しない記事
+  - デフォルト値
+
+**AI・データ活用の扱い**:
+- `/topics/ai` ページは表示上独立したテーマLPとして存在
+- しかし記事のカテゴリは `'dx'`、タグに `'AI'` を付与して管理
+- `/topics/ai` では `category='dx' AND 'AI' IN tags` でフィルタ表示
 
 ### **Topics（特集）**
 ```prisma
@@ -1638,7 +1662,50 @@ export async function POST(req: Request) {
 
 ## 10. Topics（特集）機能
 
-### **10.1 特集ハブページ**
+### **10.1 主要3テーマの固定トピック**
+
+サイト開設時に必ず作成する3つの固定トピック:
+
+#### 1. **医療政策** (`slug: 'policy'`)
+```typescript
+{
+  slug: 'policy',
+  title: '医療政策',
+  description: '診療報酬改定、中医協の議論、地域医療構想、医療保険制度の変遷など、医療政策の最新動向を追います。',
+  priority: 100,
+  // 対応カテゴリ: 'policy'
+}
+```
+
+#### 2. **実装（医療DX）** (`slug: 'dx'`)
+```typescript
+{
+  slug: 'dx',
+  title: '実装（医療DX）',
+  description: '電子カルテ標準化、PHR、オンライン診療、オンライン資格確認など、医療DXの現場実装を解説します。',
+  priority: 90,
+  // 対応カテゴリ: 'dx'（AIタグなし）
+}
+```
+
+#### 3. **AI・データ活用** (`slug: 'ai'`)
+```typescript
+{
+  slug: 'ai',
+  title: 'AI・データ活用',
+  description: 'AI問診、画像診断支援、ビッグデータ解析、予測モデルなど、医療現場でのAI・データ活用事例を紹介します。',
+  priority: 80,
+  // 対応カテゴリ: 'dx' AND tags=['AI']
+  // 注: このトピックの記事一覧は category='dx' かつ tags に 'AI' を含む記事をフィルタ表示
+}
+```
+
+**運用方針**:
+- これら3つのトピックは削除不可（管理画面で保護）
+- 記事との紐付けは `TopicPost` テーブル経由で手動管理
+- `/topics/ai` では `category='dx' AND 'AI' IN tags` の記事を自動表示
+
+### **10.2 特集ハブページ**
 
 **URL:** `/topics/[slug]`
 
@@ -1650,7 +1717,7 @@ export async function POST(req: Request) {
 - 用語集（`TopicGlossary`）
 - 一次情報リンク
 
-### **10.2 代表記事の選定**
+### **10.3 代表記事の選定**
 
 ```typescript
 // lib/queries/topics.ts
@@ -1933,9 +2000,157 @@ export async function GET() {
 
 ---
 
-## 15. 付録
+## 15. ナビゲーション・情報アーキテクチャ
 
-### **15.1 法務ページ**
+### **15.1 グローバルナビゲーション構造**
+
+#### フラット構造 + 視覚的階層
+
+```
+記事 / 医療政策 / 実装（医療DX） / AI・データ活用 / 検索 / About
+```
+
+**視覚的階層の定義**:
+- **主軸**（濃色・標準フォント）: 記事、検索、About
+- **テーマ軸**（薄色・小さめフォント）: 医療政策、実装（医療DX）、AI・データ活用
+
+**Tailwind実装例**:
+```tsx
+<nav className="flex items-center gap-6">
+  {/* 主軸 */}
+  <Link href="/news" className="text-gray-900 hover:text-black font-medium text-[15px]">
+    記事
+  </Link>
+
+  {/* テーマ軸 */}
+  <Link href="/topics/policy" className="text-gray-500 hover:text-gray-800 text-[14px]">
+    医療政策
+  </Link>
+  <Link href="/topics/dx" className="text-gray-500 hover:text-gray-800 text-[14px]">
+    実装（医療DX）
+  </Link>
+  <Link href="/topics/ai" className="text-gray-500 hover:text-gray-800 text-[14px]">
+    AI・データ活用
+  </Link>
+
+  {/* 主軸 */}
+  <Link href="/search" className="text-gray-900 hover:text-black font-medium text-[15px]">
+    検索
+  </Link>
+  <Link href="/about" className="text-gray-900 hover:text-black font-medium text-[15px]">
+    About
+  </Link>
+</nav>
+```
+
+**設計意図**:
+- UX: 一瞬で「主要機能」と「コンテンツテーマ」が識別可能
+- SEO: すべてのリンクがトップ階層に存在し、クローラビリティ最大化
+- 拡張性: 将来カテゴリ追加時も視覚グループに追加するだけ
+- モバイル: ハンバーガーメニュー内でも同じ順序を維持
+
+#### モバイルナビゲーション
+
+```tsx
+<MobileNav>
+  {/* 検索アイコンは常時表示（ヘッダー右上固定） */}
+  <SearchButton />
+
+  {/* ハンバーガーメニュー内 */}
+  <NavLink href="/news" primary>記事</NavLink>
+  <NavDivider label="テーマ" />
+  <NavLink href="/topics/policy">医療政策</NavLink>
+  <NavLink href="/topics/dx">実装（医療DX）</NavLink>
+  <NavLink href="/topics/ai">AI・データ活用</NavLink>
+  <NavDivider />
+  <NavLink href="/about" primary>About</NavLink>
+</MobileNav>
+```
+
+### **15.2 主要ページ構成**
+
+| URL | ページ | 説明 | revalidate |
+|-----|--------|------|------------|
+| `/` | トップ | Hero + 3テーマカード + 新着記事 | 900秒 |
+| `/news` | 記事一覧 | 全記事・カテゴリタブ付き | 900秒 |
+| `/topics` | 特集ハブ | 3テーマの紹介カード | 1800秒 |
+| `/topics/policy` | 医療政策LP | 導入文 + 記事一覧 | 900秒 |
+| `/topics/dx` | 医療DX LP | 導入文 + 記事一覧 | 900秒 |
+| `/topics/ai` | AI LP | 導入文 + dx+AIタグ記事 | 900秒 |
+| `/news/[slug]` | 記事詳細 | ペイウォール対応 | 900秒 |
+| `/search` | 検索 | 全文検索（noindex） | - |
+| `/about` | About | サイト概要 | 3600秒 |
+
+### **15.3 カテゴリチップ表示**
+
+記事カード上に表示するカテゴリチップ:
+
+```tsx
+// components/post/CategoryChip.tsx
+export function CategoryChip({ category }: { category: 'policy' | 'dx' | 'other' }) {
+  const config = {
+    policy: {
+      label: '医療政策',
+      className: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+    },
+    dx: {
+      label: '実装（医療DX）',
+      className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+    },
+    other: {
+      label: 'その他',
+      className: 'bg-gray-100 text-gray-700 ring-1 ring-gray-200'
+    }
+  }
+
+  const { label, className } = config[category]
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${className}`}>
+      {label}
+    </span>
+  )
+}
+
+// AIタグがある場合は追加でAIチップも表示
+{tags.includes('AI') && (
+  <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-violet-50 text-violet-700 ring-1 ring-violet-200">
+    AI
+  </span>
+)}
+```
+
+**アクセシビリティ要件**:
+- コントラスト比 WCAG AA以上（4.5:1以上）
+- ダークモード対応時も同様の基準維持
+
+### **15.4 パンくずナビゲーション**
+
+記事詳細ページでのパンくず例:
+
+```
+Home > 特集 > 医療政策 > 今週の医療政策まとめ（第41週）
+```
+
+構造化データ（BreadcrumbList）も同時出力:
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://example.com/" },
+    { "@type": "ListItem", "position": 2, "name": "特集", "item": "https://example.com/topics" },
+    { "@type": "ListItem", "position": 3, "name": "医療政策", "item": "https://example.com/topics/policy" },
+    { "@type": "ListItem", "position": 4, "name": "今週の医療政策まとめ（第41週）" }
+  ]
+}
+```
+
+---
+
+## 16. 付録
+
+### **16.1 法務ページ**
 
 必須ページ:
 - `/about` - サイト概要
@@ -1944,7 +2159,7 @@ export async function GET() {
 - `/legal/tokusho` - 特定商取引法表記
 - `/status` - 稼働情報
 
-### **15.2 PHI（保護医療情報）ポリシー**
+### **16.2 PHI（保護医療情報）ポリシー**
 
 **メール本文に含めてはいけない情報:**
 - 患者氏名
@@ -1958,7 +2173,7 @@ export async function GET() {
 - 領収書ダウンロードリンク（署名付きURL）
 - ログインリンク（セッショントークン）
 
-### **15.3 主要コマンド**
+### **16.3 主要コマンド**
 
 ```bash
 # 開発サーバー起動

@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>医療政策・医療DXニュース - Medical News Site</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#f9fafb',
+                            100: '#f3f4f6',
+                            500: '#6b7280',
+                            600: '#4b5563',
+                            700: '#374151',
+                        },
+                        accent: {
+                            50: '#f9fafb',
+                            100: '#f3f4f6',
+                            500: '#6b7280',
+                            600: '#4b5563',
+                            700: '#374151',
+                        },
+                        neutral: {
+                            50: '#fafafa',
+                            100: '#f5f5f5',
+                            200: '#e5e5e5',
+                            300: '#d4d4d4',
+                            500: '#737373',
+                            600: '#525252',
+                            700: '#404040',
+                            800: '#262626',
+                            900: '#171717',
+                        },
+                        success: {
+                            50: '#f5f5f5',
+                            600: '#404040',
+                        },
+                        info: {
+                            50: '#f5f5f5',
+                            600: '#404040',
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @media (min-width: 1024px) {
+            .hero-title {
+                font-size: clamp(60px, 10vw, 120px);
+            }
+        }
+        @media (max-width: 1023px) {
+            .hero-title {
+                font-size: clamp(40px, 12vw, 80px);
+            }
+        }
+        .blog-card {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        .blog-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach((entry, index) => {
+                    if (entry.isIntersecting) {
+                        setTimeout(() => {
+                            entry.target.classList.add('visible');
+                        }, index * 100);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            });
+
+            document.querySelectorAll('.blog-card').forEach((card) => {
+                observer.observe(card);
+            });
+        });
+    </script>
+</head>
+<body class="bg-neutral-50 font-sans text-neutral-900">
+    <div class="max-w-[1440px] mx-auto">
+        <!-- Header -->
+        <header class="bg-white shadow-sm">
+            <!-- Navbar -->
+            <nav class="max-w-[1216px] mx-auto px-4 lg:px-0 flex flex-col lg:flex-row justify-between items-center gap-5 lg:gap-0 py-6">
+                <div class="text-2xl font-bold text-neutral-900">Fuyuto Web</div>
+                <div class="flex flex-wrap items-center justify-center gap-2">
+                    <!-- 記事グループ -->
+                    <a href="/news" class="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px;">記事</a>
+                    <span class="text-neutral-400" style="font-size: 15px;">＞</span>
+                    <a href="/topics/policy" class="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px;">医療政策</a>
+                    <span class="text-neutral-400" style="font-size: 15px;">/</span>
+                    <a href="/topics/dx" class="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px;">実装（医療DX）</a>
+                    <span class="text-neutral-400" style="font-size: 15px;">/</span>
+                    <a href="/topics/ai" class="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px;">AI・データ活用</a>
+
+                    <!-- 区切り -->
+                    <span class="text-neutral-400 mx-1" style="font-size: 15px;">｜</span>
+
+                    <!-- その他 -->
+                    <a href="/learning" class="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px;">学習</a>
+                    <span class="text-neutral-400 mx-1" style="font-size: 15px;">｜</span>
+                    <a href="/search" class="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px;">検索</a>
+                    <span class="text-neutral-400 mx-1" style="font-size: 15px;">｜</span>
+                    <a href="/about" class="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px;">About</a>
+                </div>
+            </nav>
+
+            <!-- Hero Title -->
+            <div class="max-w-[1216px] mx-auto px-4 lg:px-0 pt-16 lg:pt-24 pb-12 lg:pb-20">
+                <h1 class="hero-title font-extrabold leading-tight text-neutral-900">医療DX × 政策 × AI</h1>
+                <p class="mt-4 text-lg text-neutral-600 max-w-2xl">
+                    データと制度をつなぎ、現場から変える。<br/>
+                    医療の未来をつくる医師が発信する、政策・DX・AIの交差点。
+                </p>
+                <p class="mt-3 text-base text-neutral-500 max-w-2xl">
+                    週次の医療政策・医療DX実装・AIニュースのまとめを中心に、<br/>
+                    中医協速報や医療現場からの個人ブログを発信しています。
+                </p>
+            </div>
+        </header>
+
+        <!-- Recent Blog Posts Section -->
+        <section class="py-12 lg:py-16">
+            <div class="max-w-[1280px] mx-auto px-8">
+                <div class="flex items-center gap-3 mb-8">
+                    <div class="h-8 w-1 bg-neutral-900"></div>
+                    <h2 class="text-3xl font-bold text-neutral-900">注目記事</h2>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Large Featured Card -->
+                    <article class="blog-card flex flex-col gap-6 bg-white overflow-hidden shadow-md">
+                        <div class="relative overflow-hidden">
+                            <img src="http://localhost:3845/assets/9ca412fa840de131974162b09d68033e23a850b5.png" alt="UX review presentations" class="w-full h-[280px] object-cover">
+                            <div class="absolute top-4 left-4">
+                                <span class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white/90 backdrop-blur-sm text-neutral-900 shadow-sm">注目記事</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-4 p-6 pt-0">
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-center gap-2 text-sm">
+                                    <span class="text-blue-600">2025年10月5日</span>
+                                    <span class="text-neutral-500">•</span>
+                                    <span class="text-neutral-500">5分で読める</span>
+                                </div>
+                                <h3 class="text-2xl font-bold leading-tight text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer">今週の医療政策まとめ（第41週）</h3>
+                                <p class="text-base leading-relaxed text-neutral-600">中医協における診療報酬改定の議論、オンライン診療の規制緩和、医療DX推進本部の最新動向をまとめました。</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition-colors cursor-pointer">医療政策</span>
+                                <span class="px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition-colors cursor-pointer">診療報酬</span>
+                                <span class="px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition-colors cursor-pointer">中医協</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <!-- Small Cards Column -->
+                    <div class="flex flex-col gap-6">
+                        <!-- Small Card 1 -->
+                        <article class="blog-card flex flex-col md:flex-row gap-5 bg-white overflow-hidden shadow-md p-5">
+                            <img src="http://localhost:3845/assets/009533ddb18880647940253fa905f2a8d6a3a95e.png" alt="Migrating to Linear 101" class="w-full md:w-40 h-40 object-cover flex-shrink-0">
+                            <div class="flex flex-col gap-3 flex-1">
+                                <div class="flex flex-col gap-2">
+                                    <div class="flex items-center gap-2 text-xs">
+                                        <span class="text-blue-600">2025年9月28日</span>
+                                    </div>
+                                    <h3 class="text-lg font-bold text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer leading-snug">電子カルテ標準化の最新動向</h3>
+                                    <p class="text-sm leading-relaxed text-neutral-600 line-clamp-2">HL7 FHIR規格の採用が加速。2026年までに全国の医療機関での導入を目指す...</p>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 mt-auto">
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">医療DX</span>
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">電子カルテ</span>
+                                </div>
+                            </div>
+                        </article>
+
+                        <!-- Small Card 2 -->
+                        <article class="blog-card flex flex-col md:flex-row gap-5 bg-white overflow-hidden shadow-md p-5">
+                            <img src="http://localhost:3845/assets/c220b565fba3f3369a85cb9bd4d04bf17c85be21.png" alt="Building your API Stack" class="w-full md:w-40 h-40 object-cover flex-shrink-0">
+                            <div class="flex flex-col gap-3 flex-1">
+                                <div class="flex flex-col gap-2">
+                                    <div class="flex items-center gap-2 text-xs">
+                                        <span class="text-blue-600">2025年9月20日</span>
+                                    </div>
+                                    <h3 class="text-lg font-bold text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer leading-snug">オンライン資格確認の義務化</h3>
+                                    <p class="text-sm leading-relaxed text-neutral-600 line-clamp-2">マイナ保険証の普及に向け、2025年4月からオンライン資格確認が原則義務化...</p>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 mt-auto">
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">医療政策</span>
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">保険証</span>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Featured Post Section -->
+        <section class="py-12 lg:py-16 bg-neutral-50">
+            <div class="max-w-[1280px] mx-auto px-8">
+                <article class="blog-card flex flex-col lg:flex-row gap-8 items-center bg-white overflow-hidden shadow-lg p-8">
+                    <div class="w-full lg:w-1/2 relative overflow-hidden">
+                        <img src="http://localhost:3845/assets/f0746a8e91047747031d3bda636eac41f4235b6d.png" alt="Grid system for better Design User Interface" class="w-full h-[320px] object-cover">
+                    </div>
+                    <div class="w-full lg:w-1/2 flex flex-col gap-5">
+                        <div class="inline-flex">
+                            <span class="px-3 py-1.5 rounded-full text-xs font-semibold bg-neutral-900 text-white shadow-sm">ピックアップ</span>
+                        </div>
+                        <div class="flex flex-col gap-4">
+                            <div class="flex items-center gap-2 text-sm">
+                                <span class="text-blue-600">2025年9月15日</span>
+                                <span class="text-neutral-500">•</span>
+                                <span class="text-neutral-500">10分で読める</span>
+                            </div>
+                            <h3 class="text-3xl font-bold leading-tight text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer">特集：2026年診療報酬改定の全体像</h3>
+                            <p class="text-base leading-relaxed text-neutral-600">2026年の診療報酬改定に向けた議論が本格化しています。中医協での検討項目、過去の改定率の推移、各医療団体の要望を整理し、今後のスケジュールと注目ポイントを徹底解説します。</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition-colors cursor-pointer">診療報酬</span>
+                            <span class="px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition-colors cursor-pointer">中医協</span>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- All Blog Posts Section -->
+        <section class="py-12 lg:py-16">
+            <div class="max-w-[1280px] mx-auto px-8">
+                <div class="flex items-center gap-3 mb-10">
+                    <div class="h-8 w-1 bg-neutral-900"></div>
+                    <h2 class="text-3xl font-bold text-neutral-900">すべての記事</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+                    <!-- Post 1 -->
+                    <article class="blog-card flex flex-col gap-5 bg-white overflow-hidden shadow-md">
+                        <div class="relative overflow-hidden">
+                            <img src="http://localhost:3845/assets/2c71d31963450c58fe599c40a68f1bf74c09b3de.png" alt="Bill Walsh leadership lessons" class="w-full h-[220px] object-cover">
+                        </div>
+                        <div class="flex flex-col gap-4 p-5 pt-0">
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="text-blue-600">2025年9月10日</span>
+                                </div>
+                                <h3 class="text-xl font-bold leading-tight text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer">医療機関のサイバーセキュリティ対策</h3>
+                                <p class="text-sm leading-relaxed text-neutral-600">ランサムウェア攻撃の増加に対応し、医療機関が取るべきセキュリティ対策とは</p>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 mt-auto">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">医療DX</span>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">セキュリティ</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <!-- Post 2 -->
+                    <article class="blog-card flex flex-col gap-5 bg-white overflow-hidden shadow-md">
+                        <div class="relative overflow-hidden">
+                            <img src="http://localhost:3845/assets/908f6e6dadefff9c6fad99774e0aa7808b2270ab.png" alt="PM mental models" class="w-full h-[220px] object-cover">
+                        </div>
+                        <div class="flex flex-col gap-4 p-5 pt-0">
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="text-blue-600">2025年9月5日</span>
+                                </div>
+                                <h3 class="text-xl font-bold leading-tight text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer">地域医療構想の進捗状況</h3>
+                                <p class="text-sm leading-relaxed text-neutral-600">2025年目標に向けた病床機能の再編成、各都道府県の取り組み状況を解説</p>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 mt-auto">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">医療政策</span>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">地域医療</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <!-- Post 3 -->
+                    <article class="blog-card flex flex-col gap-5 bg-white overflow-hidden shadow-md">
+                        <div class="relative overflow-hidden">
+                            <img src="http://localhost:3845/assets/aa0e63b4b72dafa20ebf705cb3408f9d3a4343ef.png" alt="What is Wireframing?" class="w-full h-[220px] object-cover">
+                        </div>
+                        <div class="flex flex-col gap-4 p-5 pt-0">
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="text-blue-600">2025年8月30日</span>
+                                </div>
+                                <h3 class="text-xl font-bold leading-tight text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer">PHRサービスの普及と課題</h3>
+                                <p class="text-sm leading-relaxed text-neutral-600">個人健康記録（PHR）の利活用が進む中、データ連携の課題と今後の展望</p>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 mt-auto">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">医療DX</span>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">PHR</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <!-- Post 4 -->
+                    <article class="blog-card flex flex-col gap-5 bg-white overflow-hidden shadow-md">
+                        <div class="relative overflow-hidden">
+                            <img src="http://localhost:3845/assets/950f430576ceafadb9f758a56d19a086f7505a80.png" alt="How collaboration makes us better designers" class="w-full h-[220px] object-cover">
+                        </div>
+                        <div class="flex flex-col gap-4 p-5 pt-0">
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="text-blue-600">2025年8月25日</span>
+                                </div>
+                                <h3 class="text-xl font-bold leading-tight text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer">AI問診システムの導入事例</h3>
+                                <p class="text-sm leading-relaxed text-neutral-600">医療機関の業務効率化を実現するAI問診。導入効果と運用のポイント</p>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 mt-auto">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">医療DX</span>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">AI</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <!-- Post 5 -->
+                    <article class="blog-card flex flex-col gap-5 bg-white overflow-hidden shadow-md">
+                        <div class="relative overflow-hidden">
+                            <img src="http://localhost:3845/assets/115540896b913ddf85158d3f3246fba7da982400.png" alt="Our top 10 Javascript frameworks to use" class="w-full h-[220px] object-cover">
+                        </div>
+                        <div class="flex flex-col gap-4 p-5 pt-0">
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="text-blue-600">2025年8月20日</span>
+                                </div>
+                                <h3 class="text-xl font-bold leading-tight text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer">オンライン診療の最新動向</h3>
+                                <p class="text-sm leading-relaxed text-neutral-600">初診からのオンライン診療解禁後の利用状況と今後の課題を分析</p>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 mt-auto">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">医療DX</span>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">オンライン診療</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <!-- Post 6 -->
+                    <article class="blog-card flex flex-col gap-5 bg-white overflow-hidden shadow-md">
+                        <div class="relative overflow-hidden">
+                            <img src="http://localhost:3845/assets/b86da4b5ab8c0e971321e0daafdbc3bc3adffb48.png" alt="Podcast: Creating a better CX Community" class="w-full h-[220px] object-cover">
+                        </div>
+                        <div class="flex flex-col gap-4 p-5 pt-0">
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="text-blue-600">2025年8月15日</span>
+                                </div>
+                                <h3 class="text-xl font-bold leading-tight text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer">かかりつけ医機能の制度化</h3>
+                                <p class="text-sm leading-relaxed text-neutral-600">地域医療の要となるかかりつけ医機能の法制化に向けた議論の行方</p>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 mt-auto">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">医療政策</span>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">かかりつけ医</span>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Pagination -->
+                <div class="flex flex-col lg:flex-row justify-between items-center pt-8 mt-4 border-t border-neutral-200 gap-5">
+                    <button class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-all">
+                        <svg class="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="12 5 7 10 12 15"></polyline>
+                        </svg>
+                        <span>前へ</span>
+                    </button>
+
+                    <div class="flex gap-2">
+                        <div class="w-10 h-10 flex items-center justify-center text-sm font-semibold bg-neutral-900 text-white shadow-sm">1</div>
+                        <button class="w-10 h-10 flex items-center justify-center text-sm font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 transition-all">2</button>
+                        <button class="w-10 h-10 flex items-center justify-center text-sm font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 transition-all">3</button>
+                        <div class="w-10 h-10 flex items-center justify-center text-sm font-medium text-neutral-400">...</div>
+                        <button class="w-10 h-10 flex items-center justify-center text-sm font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 transition-all">8</button>
+                        <button class="w-10 h-10 flex items-center justify-center text-sm font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 transition-all">9</button>
+                        <button class="w-10 h-10 flex items-center justify-center text-sm font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 transition-all">10</button>
+                    </div>
+
+                    <button class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-all">
+                        <span>次へ</span>
+                        <svg class="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="8 5 13 10 8 15"></polyline>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="bg-neutral-900 py-12 lg:py-16 mt-16">
+            <div class="max-w-[1216px] mx-auto px-4 lg:px-0">
+                <div class="flex flex-col items-center gap-6 text-center">
+                    <div class="text-2xl font-bold text-white">Fuyuto Web</div>
+                    <div class="flex flex-wrap justify-center gap-6 text-neutral-400">
+                        <a href="/about" class="hover:text-white transition-colors">サイト概要</a>
+                        <a href="/legal/privacy" class="hover:text-white transition-colors">プライバシーポリシー</a>
+                        <a href="/legal/terms" class="hover:text-white transition-colors">利用規約</a>
+                        <a href="/legal/tokusho" class="hover:text-white transition-colors">特定商取引法</a>
+                        <a href="mailto:contact@example.com" class="hover:text-white transition-colors">お問い合わせ</a>
+                    </div>
+                    <div class="w-full h-px bg-neutral-800 my-4"></div>
+                    <p class="text-sm text-neutral-500">© 2025 Fuyuto Web. All rights reserved.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>
