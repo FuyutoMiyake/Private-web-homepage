@@ -1,0 +1,130 @@
+// Medical News Blog - Prisma Schema
+// learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== Core Models =====
+
+model Post {
+  id       String   @id @default(uuid())
+  slug     String   @unique
+  title    String
+  body     String   // MDX/Markdown
+  summary  String?
+  category String   @default("other") // 'policy' | 'dx' | 'other'
+  tags     String[]
+
+  publishAt DateTime?
+  status    String   @default("draft") // 'draft' | 'scheduled' | 'published'
+
+  // Paywall
+  paywallEnabled       Boolean  @default(true)
+  freeMode             String   @default("marker") // 'marker' | 'chars' | 'sections'
+  freeChars            Int?
+  freeSections         Int?
+  priceJpy             Int?
+  isSubscriptionExempt Boolean  @default(false)
+
+  // Featured
+  isFeatured    Boolean   @default(false)
+  featuredOrder Int?
+  featuredUntil DateTime?
+
+  // Search (PostgreSQLで自動生成)
+  searchVector Unsupported("tsvector")?
+
+  sourceUrls String[] // 一次情報URL (最大3つ)
+
+  createdBy String? // User.id (将来)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments Comment[]
+
+  @@index([status, publishAt])
+  @@index([isFeatured, featuredOrder])
+  @@index([category])
+  @@index([tags])
+  @@index([searchVector], type: Gin)
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+model ArticleAlias {
+  id        String   @id @default(uuid())
+  postId    String
+  oldSlug   String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([oldSlug])
+}
+
+model Comment {
+  id          String   @id @default(uuid())
+  postId      String
+  authorName  String?
+  authorEmail String?
+  body        String
+  status      String   @default("pending") // 'pending' | 'approved' | 'rejected'
+  ipHash      String?
+  createdAt   DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, status])
+  @@index([status, createdAt])
+}
+
+// ===== Newsletter =====
+
+model NewsletterSubscriber {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  status     String   @default("active") // 'active' | 'unsubscribed'
+  categories String[] // ['policy', 'dx'] など、購読カテゴリ
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+}
+
+// ===== Future Models =====
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  role      String   @default("viewer") // 'admin' | 'editor' | 'viewer'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Video {
+  id              String   @id @default(uuid())
+  provider        String   @default("drive") // 'drive' | 'stream' | 'mux'
+  providerAssetId String?  @unique
+  title           String?
+  isPublicPreview Boolean  @default(false)
+  createdAt       DateTime @default(now())
+}
+
+model Plan {
+  id            String @id @default(uuid())
+  type          String // 'subscription' | 'one_time'
+  stripePriceId String?
+}
+
+model Entitlement {
+  id        String    @id @default(uuid())
+  userId    String
+  planId    String?
+  postId    String?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+}

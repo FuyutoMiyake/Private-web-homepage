@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@layer base {
+  body {
+    @apply bg-neutral-50 font-sans text-neutral-900;
+  }
+}
+
+@layer utilities {
+  /* Hero title responsive sizing */
+  @media (min-width: 1024px) {
+    .hero-title {
+      font-size: clamp(60px, 10vw, 120px);
+    }
+  }
+  @media (max-width: 1023px) {
+    .hero-title {
+      font-size: clamp(40px, 12vw, 80px);
+    }
+  }
+
+  /* Scroll fade-in animation */
+  .blog-card {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .blog-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+}
