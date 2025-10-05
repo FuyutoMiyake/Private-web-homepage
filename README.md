@@ -778,40 +778,50 @@ FEATURE_STRIPE_ENABLED=false  # これが false の間は /pricing にリダイ�
 ### **グローバルナビゲーション**
 
 ```
-記事 / 医療政策 / 実装（医療DX） / AI・データ活用 / 検索 / About
+記事 ＞ 医療政策 / 実装（医療DX） / AI・データ活用 ｜ 学習 ｜ 検索 ｜ About
 ```
 
 **視覚的階層:**
-- **主軸（濃色）**: 記事、検索、About
-  - `text-gray-900`、`font-medium`、`text-[15px]`
-- **テーマ軸（薄色）**: 医療政策、実装（医療DX）、AI・データ活用
-  - `text-gray-500`、通常ウェイト、`text-[14px]`
+- **記事**: 全記事一覧へのエントリーポイント
+- **＞**: カテゴリLPグループの開始を示す記号
+- **テーマ軸**: 医療政策、実装（医療DX）、AI・データ活用（スラッシュ区切り）
+- **｜**: セクション区切り
+- **その他**: 学習、検索、About
 
 **実装例:**
 
 ```tsx
-<nav className="flex items-center gap-6">
-  {/* 主軸 */}
-  <Link href="/news" className="text-gray-900 hover:text-black font-medium text-[15px]">
+<nav className="flex items-center gap-2">
+  {/* 記事グループ */}
+  <Link href="/post" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style={{fontSize: '15px'}}>
     記事
   </Link>
-
-  {/* テーマ軸 */}
-  <Link href="/topics/policy" className="text-gray-500 hover:text-gray-800 text-[14px]">
+  <span className="text-neutral-400" style={{fontSize: '15px'}}>＞</span>
+  <Link href="/post/policy" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style={{fontSize: '15px'}}>
     医療政策
   </Link>
-  <Link href="/topics/dx" className="text-gray-500 hover:text-gray-800 text-[14px]">
+  <span className="text-neutral-400" style={{fontSize: '15px'}}>/</span>
+  <Link href="/post/dx" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style={{fontSize: '15px'}}>
     実装（医療DX）
   </Link>
-  <Link href="/topics/ai" className="text-gray-500 hover:text-gray-800 text-[14px]">
+  <span className="text-neutral-400" style={{fontSize: '15px'}}>/</span>
+  <Link href="/post/ai" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style={{fontSize: '15px'}}>
     AI・データ活用
   </Link>
 
-  {/* 主軸 */}
-  <Link href="/search" className="text-gray-900 hover:text-black font-medium text-[15px]">
+  {/* 区切り */}
+  <span className="text-neutral-400 mx-1" style={{fontSize: '15px'}}>｜</span>
+
+  {/* その他 */}
+  <Link href="/learning" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style={{fontSize: '15px'}}>
+    学習
+  </Link>
+  <span className="text-neutral-400 mx-1" style={{fontSize: '15px'}}>｜</span>
+  <Link href="/search" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style={{fontSize: '15px'}}>
     検索
   </Link>
-  <Link href="/about" className="text-gray-900 hover:text-black font-medium text-[15px]">
+  <span className="text-neutral-400 mx-1" style={{fontSize: '15px'}}>｜</span>
+  <Link href="/about" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style={{fontSize: '15px'}}>
     About
   </Link>
 </nav>
@@ -836,20 +846,19 @@ FEATURE_STRIPE_ENABLED=false  # これが false の間は /pricing にリダイ�
 
 **注意:**
 - AI・データ活用は独立したカテゴリではなく、`'dx'` のサブセット
-- `/topics/ai` ページでは `category='dx' AND 'AI' IN tags` でフィルタ表示
+- `/post/ai` ページでは `category='dx' AND 'AI' IN tags` でフィルタ表示
 
 ### **主要ページルーティング**
 
 | URL | 説明 | データ取得ロジック |
 |-----|------|------------------|
-| `/` | トップページ | 最新記事10本 + 固定Topics 3本 |
-| `/news` | 記事一覧（全体） | 全カテゴリの記事、ページネーション |
-| `/news/[slug]` | 記事詳細 | 個別記事 + ペイウォール判定 |
-| `/topics` | 特集ハブ | Topics一覧（priority順） |
-| `/topics/policy` | 医療政策LP | `category='policy'` の記事 |
-| `/topics/dx` | 医療DX LP | `category='dx'` の記事 |
-| `/topics/ai` | AI・データ活用LP | `category='dx' AND 'AI' IN tags` |
-| `/topics/[slug]` | その他の特集 | 任意のTopicとその記事 |
+| `/` | トップページ | 最新記事10本 + カテゴリカード |
+| `/post` | 記事一覧（全体） | 全カテゴリの記事、ページネーション |
+| `/post/[slug]` | 記事詳細 | 個別記事 + ペイウォール判定 |
+| `/post/policy` | 医療政策LP | `category='policy'` の記事一覧 |
+| `/post/dx` | 医療DX LP | `category='dx'` の記事一覧 |
+| `/post/ai` | AI・データ活用LP | `category='dx' AND 'AI' IN tags` |
+| `/learning` | 学習ページ | 学習リソース（将来実装） |
 | `/search` | 検索ページ | PostgreSQL全文検索 |
 | `/about` | サイト概要 | 静的ページ |
 
@@ -890,12 +899,12 @@ export function CategoryChip({ category }: { category: 'policy' | 'dx' | 'other'
 #### **パンくずリスト**
 
 ```tsx
-// 記事詳細ページ (/news/[slug])
+// 記事詳細ページ (/post/[slug])
 <nav aria-label="Breadcrumb">
   <ol className="flex items-center gap-2">
     <li><Link href="/">ホーム</Link></li>
     <li>/</li>
-    <li><Link href="/news">記事</Link></li>
+    <li><Link href="/post">記事</Link></li>
     <li>/</li>
     <li aria-current="page">{post.title}</li>
   </ol>
@@ -908,7 +917,7 @@ export function CategoryChip({ category }: { category: 'policy' | 'dx' | 'other'
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://yourdomain.com/" },
-      { "@type": "ListItem", "position": 2, "name": "記事", "item": "https://yourdomain.com/news" },
+      { "@type": "ListItem", "position": 2, "name": "記事", "item": "https://yourdomain.com/post" },
       { "@type": "ListItem", "position": 3, "name": post.title }
     ]
   })}
@@ -918,20 +927,20 @@ export function CategoryChip({ category }: { category: 'policy' | 'dx' | 'other'
 #### **CollectionPage 構造化データ**
 
 ```tsx
-// Topics LP (/topics/policy, /topics/dx, /topics/ai)
+// カテゴリLP (/post/policy, /post/dx, /post/ai)
 <script type="application/ld+json">
   {JSON.stringify({
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     "name": "医療政策",
     "description": "診療報酬改定、中医協の議論、地域医療構想など",
-    "url": "https://yourdomain.com/topics/policy",
+    "url": "https://yourdomain.com/post/policy",
     "mainEntity": {
       "@type": "ItemList",
       "itemListElement": posts.map((post, i) => ({
         "@type": "ListItem",
         "position": i + 1,
-        "url": `https://yourdomain.com/news/${post.slug}`
+        "url": `https://yourdomain.com/post/${post.slug}`
       }))
     }
   })}
@@ -941,13 +950,13 @@ export function CategoryChip({ category }: { category: 'policy' | 'dx' | 'other'
 ### **アクセシビリティ要件**
 
 - **コントラスト比**: WCAG AA 基準（4.5:1以上）
-  - 濃色ナビ: `text-gray-900` (16.94:1)
-  - 薄色ナビ: `text-gray-500` (4.71:1) ✅
+  - ナビテキスト: `text-neutral-900` (16.94:1) ✅
+  - 区切り記号: `text-neutral-400` (3.06:1、装飾要素のため許容)
 - **キーボード操作**: すべてのナビリンクが Tab/Enter で操作可能
 - **スクリーンリーダー**: `aria-current="page"` でアクティブページを明示
 - **Lighthouse スコア**: Accessibility 90点以上
 
-詳細は `REQUIREMENTS.md` v2.1 の「15. ナビゲーション・情報アーキテクチャ」参照。
+詳細は `REQUIREMENTS.md` v3.0 の「15. ナビゲーション・情報アーキテクチャ」参照。
 
 ---
 

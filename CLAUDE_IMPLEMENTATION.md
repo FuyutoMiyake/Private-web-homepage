@@ -8,8 +8,8 @@
 ## 📋 実装フェーズ一覧
 
 1. **Phase 1: プロジェクト基盤** - Next.js + Supabase + Vercel KV セットアップ
-2. **Phase 2: コア機能** - 記事CRUD、ペイウォール、Topics、検索
-3. **Phase 3: UI/管理画面** - トップページ、記事詳細、管理画面
+2. **Phase 2: コア機能** - 記事CRUD、ペイウォール、検索
+3. **Phase 3: UI/管理画面** - トップページ、記事詳細、カテゴリLP、管理画面
 4. **Phase 4: セキュリティ/メール** - Turnstile、Rate Limit、Resend、Stripe Seeds
 5. **Phase 5: SNS/テスト** - SNS リンク、E2E テスト、GA4
 
@@ -390,12 +390,12 @@ migrations/
 
 ---
 
-## 🗄️ Phase 2: コア機能（記事、ペイウォール、Topics、検索）
+## 🗄️ Phase 2: コア機能（記事、ペイウォール、検索）
 
 ### 実行コマンド
 
 ```markdown
-あなたは Next.js 14 (App Router) + Prisma + Supabase のプロジェクトに、記事管理、ペイウォール、Topics（特集）、検索機能を実装する熟練エンジニアです。Phase 1 で構築した基盤の上に実装してください。
+あなたは Next.js 14 (App Router) + Prisma + Supabase のプロジェクトに、記事管理、ペイウォール、検索機能を実装する熟練エンジニアです。Phase 1 で構築した基盤の上に実装してください。
 
 ## 0. 前提
 
@@ -451,70 +451,14 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  topicPosts TopicPost[]
   comments   Comment[]
 
   @@index([status, publishAt])
   @@index([isFeatured, featuredOrder])
+  @@index([category])
+  @@index([tags])
   @@index([searchVector], type: Gin)
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
-}
-
-model Topic {
-  id          String @id @default(uuid())
-  slug        String @unique
-  title       String
-  description String // 100-200字の導入文
-  coverImage  String?
-  priority    Int    @default(0)
-
-  searchVector Unsupported("tsvector")?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  posts    TopicPost[]
-  faqs     TopicFaq[]
-  glossary TopicGlossary[]
-
-  @@index([priority])
-  @@index([searchVector], type: Gin)
-}
-
-model TopicPost {
-  topicId      String
-  postId       String
-  displayOrder Int     @default(0)
-  isFeatured   Boolean @default(false) // "まず読む3本"
-
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@id([topicId, postId])
-  @@index([topicId, isFeatured, displayOrder])
-}
-
-model TopicFaq {
-  id           String @id @default(uuid())
-  topicId      String
-  question     String
-  answer       String
-  displayOrder Int    @default(0)
-
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-
-  @@index([topicId, displayOrder])
-}
-
-model TopicGlossary {
-  id         String @id @default(uuid())
-  topicId    String
-  term       String
-  definition String
-
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-
-  @@index([topicId])
 }
 
 model ArticleAlias {
@@ -582,15 +526,6 @@ GENERATED ALWAYS AS (
 CREATE INDEX "Post_searchVector_idx" ON "Post" USING GIN("searchVector");
 CREATE INDEX "Post_title_trgm_idx" ON "Post" USING GIN(title gin_trgm_ops);
 
--- Topics 検索用カラム
-ALTER TABLE "Topic"
-ADD COLUMN "searchVector" tsvector
-GENERATED ALWAYS AS (
-  setweight(to_tsvector('simple', coalesce(title,'')), 'A') ||
-  setweight(to_tsvector('simple', coalesce(description,'')), 'B')
-) STORED;
-
-CREATE INDEX "Topic_searchVector_idx" ON "Topic" USING GIN("searchVector");
 ```
 
 ## 3. ペイウォールロジック
@@ -718,19 +653,10 @@ export async function GET(req: NextRequest) {
   const sanitized = q.replace(/[^\w\s\u3000-\u9fff]/g, ' ').trim()
   const tsquery = sanitized.split(/\s+/).join(' & ')
 
-  // Topics（2倍ブースト）
-  const topics = await db.$queryRaw<Array<{ id: string; slug: string; title: string; type: string; rank: number }>>`
+  // Posts検索
+  const posts = await db.$queryRaw<Array<{ id: string; slug: string; title: string; summary: string | null; category: string; type: string; rank: number }>>`
     SELECT
-      id, slug, title, 'topic' as type,
-      ts_rank("searchVector", to_tsquery('simple', ${tsquery})) * 2 AS rank
-    FROM "Topic"
-    WHERE "searchVector" @@ to_tsquery('simple', ${tsquery})
-  `
-
-  // Posts
-  const posts = await db.$queryRaw<Array<{ id: string; slug: string; title: string; summary: string | null; type: string; rank: number }>>`
-    SELECT
-      id, slug, title, summary, 'post' as type,
+      id, slug, title, summary, category, 'post' as type,
       ts_rank("searchVector", to_tsquery('simple', ${tsquery})) AS rank
     FROM "Post"
     WHERE
@@ -740,11 +666,11 @@ export async function GET(req: NextRequest) {
         OR title ILIKE ${`%${sanitized}%`}
         OR ${sanitized} = ANY(tags)
       )
+    ORDER BY rank DESC
+    LIMIT ${limit}
   `
 
-  const combined = [...topics, ...posts]
-    .sort((a, b) => b.rank - a.rank)
-    .slice(0, limit)
+  const combined = posts
 
   return NextResponse.json({
     results: combined,
@@ -931,32 +857,20 @@ Button.displayName = 'Button'
 
 ```typescript
 import { db } from '@/lib/db'
-import { TopicsGrid } from '@/components/home/TopicsGrid'
+import { CategoryCards } from '@/components/home/CategoryCards'
 import { FeaturedRow } from '@/components/home/FeaturedRow'
 import { LatestStream } from '@/components/home/LatestStream'
 
 export const revalidate = 900 // 15分キャッシュ
 
-async function getTopics() {
-  return db.topic.findMany({
-    take: 3,
-    orderBy: { priority: 'desc' },
-    include: {
-      posts: {
-        where: {
-          post: { status: 'published' },
-          isFeatured: true
-        },
-        take: 3,
-        orderBy: { displayOrder: 'asc' },
-        include: {
-          post: {
-            select: { id: true, slug: true, title: true, publishAt: true }
-          }
-        }
-      }
-    }
-  })
+async function getCategoryCounts() {
+  const [policyCount, dxCount, aiCount] = await Promise.all([
+    db.post.count({ where: { status: 'published', category: 'policy' } }),
+    db.post.count({ where: { status: 'published', category: 'dx' } }),
+    db.post.count({ where: { status: 'published', category: 'dx', tags: { has: 'AI' } } })
+  ])
+
+  return { policyCount, dxCount, aiCount }
 }
 
 async function getFeaturedPosts() {
@@ -995,19 +909,19 @@ async function getLatestPosts() {
 }
 
 export default async function HomePage() {
-  const [topics, featured, latest] = await Promise.allSettled([
-    getTopics(),
+  const [categories, featured, latest] = await Promise.allSettled([
+    getCategoryCounts(),
     getFeaturedPosts(),
     getLatestPosts()
   ])
 
   return (
     <main className="container mx-auto px-4 py-8">
-      {/* 特集 */}
-      {topics.status === 'fulfilled' && (
+      {/* カテゴリカード */}
+      {categories.status === 'fulfilled' && (
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">特集</h2>
-          <TopicsGrid topics={topics.value} />
+          <h2 className="text-3xl font-bold mb-6">カテゴリ</h2>
+          <CategoryCards counts={categories.value} />
         </section>
       )}
 
@@ -1031,42 +945,52 @@ export default async function HomePage() {
 }
 ```
 
-`components/home/TopicsGrid.tsx` を作成:
+`components/home/CategoryCards.tsx` を作成:
 
 ```typescript
 import Link from 'next/link'
-import { Topic, TopicPost, Post } from '@prisma/client'
-
-type TopicWithPosts = Topic & {
-  posts: Array<TopicPost & { post: Pick<Post, 'id' | 'slug' | 'title' | 'publishAt'> }>
-}
 
 interface Props {
-  topics: TopicWithPosts[]
+  counts: {
+    policyCount: number
+    dxCount: number
+    aiCount: number
+  }
 }
 
-export function TopicsGrid({ topics }: Props) {
+export function CategoryCards({ counts }: Props) {
+  const categories = [
+    {
+      title: '医療政策',
+      description: '診療報酬改定、中医協の議論、地域医療構想、医療保険制度の変遷など、医療政策の最新動向を追います。',
+      href: '/post/policy',
+      count: counts.policyCount
+    },
+    {
+      title: '実装（医療DX）',
+      description: '電子カルテ標準化、PHR、オンライン診療、オンライン資格確認など、医療DXの現場実装を解説します。',
+      href: '/post/dx',
+      count: counts.dxCount
+    },
+    {
+      title: 'AI・データ活用',
+      description: 'AI問診、画像診断支援、ビッグデータ解析、予測モデルなど、医療現場でのAI・データ活用事例を紹介します。',
+      href: '/post/ai',
+      count: counts.aiCount
+    }
+  ]
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {topics.map((topic) => (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {categories.map((cat) => (
         <Link
-          key={topic.id}
-          href={`/topics/${topic.slug}`}
+          key={cat.href}
+          href={cat.href}
           className="border rounded-lg p-6 hover:shadow-lg transition"
         >
-          <h3 className="text-xl font-bold mb-2">{topic.title}</h3>
-          <p className="text-gray-600 mb-4">{topic.description.slice(0, 100)}...</p>
-
-          {/* 代表記事 */}
-          {topic.posts.length > 0 && (
-            <ul className="space-y-2 text-sm">
-              {topic.posts.map(({ post }) => (
-                <li key={post.id} className="text-primary-600 hover:underline">
-                  → {post.title}
-                </li>
-              ))}
-            </ul>
-          )}
+          <h3 className="text-xl font-bold mb-2">{cat.title}</h3>
+          <p className="text-gray-600 mb-4 text-sm">{cat.description}</p>
+          <div className="text-sm text-primary-600">{cat.count}件の記事</div>
         </Link>
       ))}
     </div>
@@ -1078,7 +1002,7 @@ export function TopicsGrid({ topics }: Props) {
 
 ## 3. 記事詳細ページ
 
-`app/(public)/news/[slug]/page.tsx` を作成:
+`app/(public)/post/[slug]/page.tsx` を作成:
 
 ```typescript
 import { notFound } from 'next/navigation'
@@ -1300,7 +1224,7 @@ export default async function AdminPostsPage() {
 
 * [ ] トップページ（`/`）が表示される
 * [ ] 特集・注目記事・最新記事が表示される
-* [ ] 記事詳細（`/news/[slug]`）が表示される
+* [ ] 記事詳細（`/post/[slug]`）が表示される
 * [ ] ペイウォール CTA が表示される
 * [ ] 管理画面（`/admin/posts`）で記事一覧が表示される
 * [ ] レスポンシブデザイン（モバイル対応）
@@ -1929,7 +1853,7 @@ export function buildNewsArticleSchema(post: Post) {
 }
 ```
 
-記事詳細ページに構造化データを追加（`app/(public)/news/[slug]/page.tsx`）:
+記事詳細ページに構造化データを追加（`app/(public)/post/[slug]/page.tsx`）:
 
 ```typescript
 import { buildNewsArticleSchema } from '@/lib/seo/structuredData'
@@ -2061,10 +1985,10 @@ export async function GET() {
     return `
       <item>
         <title><![CDATA[${post.title}]]></title>
-        <link>${process.env.NEXT_PUBLIC_SITE_URL}/news/${post.slug}</link>
+        <link>${process.env.NEXT_PUBLIC_SITE_URL}/post/${post.slug}</link>
         <description><![CDATA[${description}]]></description>
         <pubDate>${pubDate}</pubDate>
-        <guid>${process.env.NEXT_PUBLIC_SITE_URL}/news/${post.slug}</guid>
+        <guid>${process.env.NEXT_PUBLIC_SITE_URL}/post/${post.slug}</guid>
       </item>
     `
   }).join('')
@@ -2430,7 +2354,7 @@ test('ペイウォールが正しく表示される', async ({ page, request }) 
   const post = await response.json()
 
   // 2. ブラウザで表示確認
-  await page.goto(`/news/${post.slug}`)
+  await page.goto(`/post/${post.slug}`)
 
   // 3. 無料部分が表示される
   await expect(page.locator('article')).toContainText('無料部分')
@@ -2525,545 +2449,3 @@ pnpm test:e2e:ui
 
 ---
 
-## 🎯 Phase 6: ナビゲーション刷新・カテゴリLP実装
-
-**最終更新**: 2025-10-05 JST
-**対応REQUIREMENTS**: v2.1 セクション15「ナビゲーション・情報アーキテクチャ」
-
-### 実行コマンド
-
-以下のプロンプトを Claude Code CLI にそのまま貼り付けてください。
-
-```markdown
-あなたは医療政策・医療DXニュースサイトのフロントエンド実装を担当する熟練エンジニアです。
-REQUIREMENTS.md v2.1 に基づき、ナビゲーション構造の刷新とカテゴリLPを実装してください。
-
-## 📋 実装概要
-
-### 主要な変更点
-1. グローバルナビを「記事 / 医療政策 / 実装（医療DX） / AI・データ活用 / 検索 / About」に更新
-2. フラット構造 + 視覚的階層（主軸=濃色、テーマ軸=薄色）
-3. `/topics/policy`, `/topics/dx`, `/topics/ai` の3つの固定LPを整備
-4. カテゴリチップ表示（色分け・WCAG AA準拠）
-5. SEO強化（構造化データ、パンくず）
-
-## 🎨 カテゴリ体系
-
-### 採用する設計
-- **3カテゴリ制**: `'policy'` / `'dx'` / `'other'`
-- **AIの扱い**: `category='dx'` + `tags=['AI']` で管理
-- `/topics/ai` は表示上独立LPだが、裏側は `dx` カテゴリのフィルタビュー
-
-## 📁 実装タスク
-
-### Task 1: データ準備 - 固定トピック作成
-
-**ファイル**: `scripts/seed-topics.ts`
-
-```typescript
-// scripts/seed-topics.ts
-import { PrismaClient } from '@prisma/client'
-
-const db = new PrismaClient()
-
-const CORE_TOPICS = [
-  {
-    slug: 'policy',
-    title: '医療政策',
-    description: '診療報酬改定、中医協の議論、地域医療構想、医療保険制度の変遷など、医療政策の最新動向を追います。',
-    priority: 100,
-  },
-  {
-    slug: 'dx',
-    title: '実装（医療DX）',
-    description: '電子カルテ標準化、PHR、オンライン診療、オンライン資格確認など、医療DXの現場実装を解説します。',
-    priority: 90,
-  },
-  {
-    slug: 'ai',
-    title: 'AI・データ活用',
-    description: 'AI問診、画像診断支援、ビッグデータ解析、予測モデルなど、医療現場でのAI・データ活用事例を紹介します。',
-    priority: 80,
-  },
-]
-
-async function main() {
-  console.log('🌱 Seeding core topics...')
-
-  for (const topic of CORE_TOPICS) {
-    await db.topic.upsert({
-      where: { slug: topic.slug },
-      update: topic,
-      create: topic,
-    })
-    console.log(`✓ Topic: ${topic.slug}`)
-  }
-
-  console.log('✅ Core topics seeded successfully')
-}
-
-main()
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
-  .finally(async () => {
-    await db.$disconnect()
-  })
-```
-
-**実行**:
-```bash
-npx tsx scripts/seed-topics.ts
-```
-
-### Task 2: カテゴリヘルパー関数
-
-**ファイル**: `lib/categories.ts`
-
-```typescript
-// lib/categories.ts
-export type Category = 'policy' | 'dx' | 'other'
-
-export interface CategoryConfig {
-  value: Category
-  label: string
-  slug: string
-  colorClass: string
-  description: string
-}
-
-export const CATEGORIES: Record<Category, CategoryConfig> = {
-  policy: {
-    value: 'policy',
-    label: '医療政策',
-    slug: 'policy',
-    colorClass: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
-    description: '診療報酬改定、中医協、地域医療構想など',
-  },
-  dx: {
-    value: 'dx',
-    label: '実装（医療DX）',
-    slug: 'dx',
-    colorClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-    description: '電子カルテ、PHR、オンライン診療など',
-  },
-  other: {
-    value: 'other',
-    label: 'その他',
-    slug: 'other',
-    colorClass: 'bg-gray-100 text-gray-700 ring-1 ring-gray-200',
-    description: 'その他の記事',
-  },
-}
-
-export const AI_TAG_COLOR_CLASS = 'bg-violet-50 text-violet-700 ring-1 ring-violet-200'
-
-export function getCategoryConfig(category: Category): CategoryConfig {
-  return CATEGORIES[category]
-}
-```
-
-### Task 3: CategoryChip Component
-
-**ファイル**: `components/post/CategoryChip.tsx`
-
-```tsx
-// components/post/CategoryChip.tsx
-import { getCategoryConfig, Category, AI_TAG_COLOR_CLASS } from '@/lib/categories'
-
-interface CategoryChipProps {
-  category: Category
-  className?: string
-}
-
-export function CategoryChip({ category, className = '' }: CategoryChipProps) {
-  const config = getCategoryConfig(category)
-
-  return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${config.colorClass} ${className}`}>
-      {config.label}
-    </span>
-  )
-}
-
-interface TagChipsProps {
-  tags: string[]
-  className?: string
-}
-
-export function TagChips({ tags, className = '' }: TagChipsProps) {
-  if (tags.length === 0) return null
-
-  return (
-    <div className={`flex flex-wrap gap-1.5 ${className}`}>
-      {tags.includes('AI') && (
-        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${AI_TAG_COLOR_CLASS}`}>
-          AI
-        </span>
-      )}
-      {tags.filter(tag => tag !== 'AI').slice(0, 3).map(tag => (
-        <span key={tag} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-700 ring-1 ring-gray-200">
-          {tag}
-        </span>
-      ))}
-    </div>
-  )
-}
-```
-
-### Task 4: MainNav Component
-
-**ファイル**: `components/nav/MainNav.tsx`
-
-```tsx
-// components/nav/MainNav.tsx
-import Link from 'next/link'
-
-export function MainNav() {
-  return (
-    <nav className="flex items-center gap-6" aria-label="グローバルナビゲーション">
-      {/* 主軸 */}
-      <Link href="/news" className="text-gray-900 hover:text-black font-medium text-[15px] transition-colors">
-        記事
-      </Link>
-
-      {/* テーマ軸 */}
-      <Link href="/topics/policy" className="text-gray-500 hover:text-gray-800 text-[14px] transition-colors">
-        医療政策
-      </Link>
-      <Link href="/topics/dx" className="text-gray-500 hover:text-gray-800 text-[14px] transition-colors">
-        実装（医療DX）
-      </Link>
-      <Link href="/topics/ai" className="text-gray-500 hover:text-gray-800 text-[14px] transition-colors">
-        AI・データ活用
-      </Link>
-
-      {/* 主軸 */}
-      <Link href="/search" className="text-gray-900 hover:text-black font-medium text-[15px] transition-colors">
-        検索
-      </Link>
-      <Link href="/about" className="text-gray-900 hover:text-black font-medium text-[15px] transition-colors">
-        About
-      </Link>
-    </nav>
-  )
-}
-```
-
-### Task 5: `/news` ページ
-
-**ファイル**: `app/news/page.tsx`
-
-```tsx
-// app/news/page.tsx
-import { db } from '@/lib/db'
-import { Category } from '@/lib/categories'
-import { PostCard } from '@/components/post/PostCard'
-import { CollectionJsonLd } from '@/components/seo/CollectionJsonLd'
-
-export const revalidate = 900 // 15分
-
-interface NewsPageProps {
-  searchParams: { category?: string }
-}
-
-export default async function NewsPage({ searchParams }: NewsPageProps) {
-  const category = searchParams.category as Category | undefined
-
-  const posts = await db.post.findMany({
-    where: {
-      status: 'published',
-      ...(category && category !== 'other' && { category }),
-    },
-    orderBy: { publishAt: 'desc' },
-    take: 20,
-  })
-
-  return (
-    <div className="max-w-[1280px] mx-auto px-8 py-16">
-      <h1 className="text-4xl font-bold mb-8">記事一覧</h1>
-
-      {/* カテゴリタブ */}
-      <div className="flex gap-2 mb-12">
-        <CategoryTab href="/news" active={!category}>全部</CategoryTab>
-        <CategoryTab href="/news?category=policy" active={category === 'policy'}>医療政策</CategoryTab>
-        <CategoryTab href="/news?category=dx" active={category === 'dx'}>実装（医療DX）</CategoryTab>
-        {/* AIはdxのサブセットなのでタブは不要、または /topics/ai へのリンクを表示 */}
-      </div>
-
-      {/* 記事グリッド */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {posts.map(post => (
-          <PostCard key={post.id} post={post} />
-        ))}
-      </div>
-
-      <CollectionJsonLd
-        name="記事一覧"
-        description="医療政策・医療DXの最新記事"
-        url={`${process.env.NEXT_PUBLIC_SITE_URL}/news`}
-      />
-    </div>
-  )
-}
-```
-
-### Task 6: `/topics` ページ
-
-**ファイル**: `app/topics/page.tsx`
-
-```tsx
-// app/topics/page.tsx
-import { db } from '@/lib/db'
-import { TopicCard } from '@/components/TopicCard'
-import { CollectionJsonLd } from '@/components/seo/CollectionJsonLd'
-
-export const revalidate = 1800 // 30分
-
-export default async function TopicsPage() {
-  const topics = await db.topic.findMany({
-    where: {
-      slug: { in: ['policy', 'dx', 'ai'] },
-    },
-    orderBy: { priority: 'desc' },
-  })
-
-  return (
-    <div className="max-w-[1280px] mx-auto px-8 py-16">
-      <h1 className="text-4xl font-bold mb-4">特集</h1>
-      <p className="text-lg text-gray-600 mb-12">
-        医療政策・医療DXの主要テーマをまとめています
-      </p>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {topics.map(topic => (
-          <TopicCard key={topic.id} topic={topic} />
-        ))}
-      </div>
-
-      <CollectionJsonLd
-        name="特集"
-        description="医療政策・医療DXの主要テーマ"
-        url={`${process.env.NEXT_PUBLIC_SITE_URL}/topics`}
-      />
-    </div>
-  )
-}
-```
-
-### Task 7: `/topics/[slug]` ページ
-
-**ファイル**: `app/topics/[slug]/page.tsx`
-
-```tsx
-// app/topics/[slug]/page.tsx
-import { db } from '@/lib/db'
-import { notFound } from 'next/navigation'
-import { PostCard } from '@/components/post/PostCard'
-import { Breadcrumbs } from '@/components/seo/Breadcrumbs'
-import { CollectionJsonLd } from '@/components/seo/CollectionJsonLd'
-
-export const revalidate = 900 // 15分
-
-interface TopicPageProps {
-  params: { slug: string }
-}
-
-export default async function TopicPage({ params }: TopicPageProps) {
-  const topic = await db.topic.findUnique({
-    where: { slug: params.slug },
-  })
-
-  if (!topic) notFound()
-
-  // AI特集の場合は category='dx' + tags=['AI'] でフィルタ
-  const posts = params.slug === 'ai'
-    ? await db.post.findMany({
-        where: {
-          status: 'published',
-          category: 'dx',
-          tags: { has: 'AI' },
-        },
-        orderBy: { publishAt: 'desc' },
-      })
-    : await db.post.findMany({
-        where: {
-          status: 'published',
-          category: params.slug === 'policy' ? 'policy' : 'dx',
-        },
-        orderBy: { publishAt: 'desc' },
-      })
-
-  return (
-    <div className="max-w-[1280px] mx-auto px-8 py-16">
-      <Breadcrumbs
-        items={[
-          { name: 'Home', url: '/' },
-          { name: '特集', url: '/topics' },
-          { name: topic.title, url: `/topics/${topic.slug}` },
-        ]}
-      />
-
-      <h1 className="text-4xl font-bold mt-8 mb-4">{topic.title}</h1>
-      <p className="text-lg text-gray-600 mb-12">{topic.description}</p>
-
-      <h2 className="text-2xl font-bold mb-6">記事一覧</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {posts.map(post => (
-          <PostCard key={post.id} post={post} />
-        ))}
-      </div>
-
-      <CollectionJsonLd
-        name={topic.title}
-        description={topic.description}
-        url={`${process.env.NEXT_PUBLIC_SITE_URL}/topics/${topic.slug}`}
-      />
-    </div>
-  )
-}
-```
-
-### Task 8: Breadcrumbs Component
-
-**ファイル**: `components/seo/Breadcrumbs.tsx`
-
-```tsx
-// components/seo/Breadcrumbs.tsx
-interface BreadcrumbItem {
-  name: string
-  url: string
-}
-
-interface BreadcrumbsProps {
-  items: BreadcrumbItem[]
-}
-
-export function Breadcrumbs({ items }: BreadcrumbsProps) {
-  return (
-    <>
-      <nav aria-label="パンくずリスト" className="text-sm text-gray-600">
-        {items.map((item, i) => (
-          <span key={i}>
-            {i > 0 && <span className="mx-2">&gt;</span>}
-            {i === items.length - 1 ? (
-              <span>{item.name}</span>
-            ) : (
-              <a href={item.url} className="hover:text-gray-900">{item.name}</a>
-            )}
-          </span>
-        ))}
-      </nav>
-
-      <BreadcrumbsJsonLd items={items} />
-    </>
-  )
-}
-
-function BreadcrumbsJsonLd({ items }: BreadcrumbsProps) {
-  const data = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: items.map((item, i) => ({
-      '@type': 'ListItem',
-      position: i + 1,
-      name: item.name,
-      item: item.url,
-    })),
-  }
-
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
-    />
-  )
-}
-```
-
-### Task 9: CollectionPage JSON-LD
-
-**ファイル**: `components/seo/CollectionJsonLd.tsx`
-
-```tsx
-// components/seo/CollectionJsonLd.tsx
-interface CollectionJsonLdProps {
-  name: string
-  description: string
-  url: string
-}
-
-export function CollectionJsonLd({ name, description, url }: CollectionJsonLdProps) {
-  const data = {
-    '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
-    name,
-    description,
-    url,
-  }
-
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
-    />
-  )
-}
-```
-
-## ✅ 受け入れ条件
-
-実装完了の判定基準:
-
-### 必須要件
-- [ ] ナビが「記事 / 医療政策 / 実装（医療DX） / AI・データ活用 / 検索 / About」（PC/モバイル）
-- [ ] 視覚的階層が正しく表示される（主軸=濃色、テーマ軸=薄色）
-- [ ] `/topics` が特集ハブとして機能する
-- [ ] `/topics/policy`, `/topics/dx`, `/topics/ai` が正しく表示される
-- [ ] `/topics/ai` は `category='dx' AND tags=['AI']` の記事を表示する
-- [ ] カテゴリチップが色分け表示される（コントラスト比 AA以上）
-- [ ] `/news` でカテゴリタブによる絞り込みが機能する
-- [ ] 記事詳細にパンくず（JSON-LD含む）が表示される
-- [ ] `/search` が `noindex,follow` のまま維持される
-
-### アクセシビリティ
-- [ ] Lighthouse アクセシビリティ 90点以上
-- [ ] カラーコントラスト WCAG AA準拠（4.5:1以上）
-- [ ] キーボードナビゲーション可能
-
-### パフォーマンス
-- [ ] 全ページが revalidate 設定済み
-- [ ] LCP < 2.5秒
-
-## 🚀 実行手順
-
-1. 固定トピックを作成
-```bash
-npx tsx scripts/seed-topics.ts
-```
-
-2. ビルド確認
-```bash
-npm run build
-```
-
-3. ローカルで動作確認
-```bash
-npm run dev
-```
-
-4. Lighthouse実行
-```bash
-npm run lighthouse
-```
-
-5. デプロイ
-```bash
-vercel --prod
-```
-```
-
----
-
-**Phase 6 実装完了！**

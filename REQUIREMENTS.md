@@ -1,6 +1,12 @@
-# ニュース集約ブログ 技術要件書 v2.1
+# ニュース集約ブログ 技術要件書 v3.0
 
 最終更新: 2025-10-05 JST
+
+**v3.0の主な変更:**
+- Topicモデルを削除、Postモデルに統一
+- URL構造変更: `/topics/*` → `/post/*`, `/news/*` → `/post/*`
+- ナビゲーション: 記事 → `/post`、カテゴリLP → `/post/policy`, `/post/dx`, `/post/ai`
+- 学習ページ追加: `/learning`（独立ページ）
 
 ---
 
@@ -199,11 +205,12 @@ model Post {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  topicPosts TopicPost[]
   comments   Comment[]
 
   @@index([status, publishAt])
   @@index([isFeatured, featuredOrder])
+  @@index([category])
+  @@index([tags])
   @@index([searchVector], type: Gin)
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
 }
@@ -216,11 +223,13 @@ Post.category は以下の3値のいずれか:
 - **`'policy'`**: 医療政策
   - 診療報酬改定、中医協、地域医療構想、医療保険制度、かかりつけ医機能など
   - ナビ表示: 「医療政策」
+  - URL: `/post/policy`
   - テーマカラー: 青系（例: `bg-blue-50 text-blue-700`）
 
 - **`'dx'`**: 医療DX実装
   - 電子カルテ標準化、PHR、オンライン診療、オンライン資格確認、セキュリティ、AI・データ活用含む
   - ナビ表示: 「実装（医療DX）」
+  - URL: `/post/dx`
   - テーマカラー: 緑系（例: `bg-emerald-50 text-emerald-700`）
   - **注意**: AI・データ活用は `category='dx'` + `tags` に `'AI'` を含めることで管理
 
@@ -229,68 +238,9 @@ Post.category は以下の3値のいずれか:
   - デフォルト値
 
 **AI・データ活用の扱い**:
-- `/topics/ai` ページは表示上独立したテーマLPとして存在
+- `/post/ai` ページは表示上独立したテーマLPとして存在
 - しかし記事のカテゴリは `'dx'`、タグに `'AI'` を付与して管理
-- `/topics/ai` では `category='dx' AND 'AI' IN tags` でフィルタ表示
-
-### **Topics（特集）**
-```prisma
-model Topic {
-  id          String   @id @default(uuid())
-  slug        String   @unique
-  title       String
-  description String   // 100-200字の導入文
-  coverImage  String?
-  priority    Int      @default(0)  // 表示順序（高い方が上）
-
-  searchVector Unsupported("tsvector")?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  posts       TopicPost[]
-  faqs        TopicFaq[]
-  glossary    TopicGlossary[]
-
-  @@index([priority])
-  @@index([searchVector], type: Gin)
-}
-
-model TopicPost {
-  topicId      String
-  postId       String
-  displayOrder Int     @default(0)
-  isFeatured   Boolean @default(false)  // "まず読む3本" フラグ
-
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@id([topicId, postId])
-  @@index([topicId, isFeatured, displayOrder])
-}
-
-model TopicFaq {
-  id           String @id @default(uuid())
-  topicId      String
-  question     String
-  answer       String
-  displayOrder Int    @default(0)
-
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-
-  @@index([topicId, displayOrder])
-}
-
-model TopicGlossary {
-  id         String @id @default(uuid())
-  topicId    String
-  term       String
-  definition String
-
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-
-  @@index([topicId])
-}
+- `/post/ai` では `category='dx' AND 'AI' IN tags` でフィルタ表示
 ```
 
 ### **ArticleAlias（スラッグ変更の301用）**
@@ -432,7 +382,6 @@ model NewsletterSubscriber {
   confirmToken   String?
   subscribedAt   DateTime?
   unsubscribedAt DateTime?
-  topics         String[]  // 興味のある特集タグ
 
   @@index([status])
 }
@@ -836,10 +785,6 @@ GENERATED ALWAYS AS (
 
 CREATE INDEX posts_search_idx ON posts USING GIN(search_vector);
 CREATE INDEX posts_title_trgm_idx ON posts USING GIN(title gin_trgm_ops);
-
--- Topics テーブル（同様）
-ALTER TABLE topics ADD COLUMN search_vector tsvector ...;
-CREATE INDEX topics_search_idx ON topics USING GIN(search_vector);
 ```
 
 ### **6.2 検索クエリ**
@@ -857,19 +802,10 @@ export async function GET(req: Request) {
   const sanitized = q.replace(/[^\w\s\u3000-\u9fff]/g, ' ').trim()
   const tsquery = sanitized.split(/\s+/).join(' & ')
 
-  // Topics（2倍ブースト）
-  const topics = await db.$queryRaw`
-    SELECT
-      id, slug, title, 'topic' as type,
-      ts_rank(search_vector, to_tsquery('simple', ${tsquery})) * 2 AS rank
-    FROM topics
-    WHERE search_vector @@ to_tsquery('simple', ${tsquery})
-  `
-
-  // Posts
+  // Posts only
   const posts = await db.$queryRaw`
     SELECT
-      id, slug, title, summary, 'post' as type,
+      id, slug, title, summary, category, tags,
       ts_rank(search_vector, to_tsquery('simple', ${tsquery})) AS rank
     FROM posts
     WHERE
@@ -879,13 +815,11 @@ export async function GET(req: Request) {
         OR title ILIKE ${`%${sanitized}%`}
         OR ${sanitized} = ANY(tags)
       )
+    ORDER BY rank DESC
+    LIMIT 20
   `
 
-  const combined = [...topics, ...posts]
-    .sort((a, b) => b.rank - a.rank)
-    .slice(0, 20)
-
-  return Response.json({ results: combined, total: combined.length, query: q })
+  return Response.json({ results: posts, total: posts.length, query: q })
 }
 ```
 
@@ -1660,99 +1594,79 @@ export async function POST(req: Request) {
 
 ---
 
-## 10. Topics（特集）機能
+## 10. カテゴリLP（ランディングページ）
 
-### **10.1 主要3テーマの固定トピック**
+### **10.1 主要3カテゴリのLP**
 
-サイト開設時に必ず作成する3つの固定トピック:
+記事のカテゴリ別にまとめた専用ページを提供します。
 
-#### 1. **医療政策** (`slug: 'policy'`)
+#### 1. **医療政策** (`/post/policy`)
 ```typescript
 {
-  slug: 'policy',
+  category: 'policy',
   title: '医療政策',
   description: '診療報酬改定、中医協の議論、地域医療構想、医療保険制度の変遷など、医療政策の最新動向を追います。',
-  priority: 100,
-  // 対応カテゴリ: 'policy'
 }
 ```
 
-#### 2. **実装（医療DX）** (`slug: 'dx'`)
+#### 2. **実装（医療DX）** (`/post/dx`)
 ```typescript
 {
-  slug: 'dx',
+  category: 'dx',
   title: '実装（医療DX）',
   description: '電子カルテ標準化、PHR、オンライン診療、オンライン資格確認など、医療DXの現場実装を解説します。',
-  priority: 90,
-  // 対応カテゴリ: 'dx'（AIタグなし）
 }
 ```
 
-#### 3. **AI・データ活用** (`slug: 'ai'`)
+#### 3. **AI・データ活用** (`/post/ai`)
 ```typescript
 {
-  slug: 'ai',
+  category: 'dx' + tags: ['AI'],
   title: 'AI・データ活用',
   description: 'AI問診、画像診断支援、ビッグデータ解析、予測モデルなど、医療現場でのAI・データ活用事例を紹介します。',
-  priority: 80,
-  // 対応カテゴリ: 'dx' AND tags=['AI']
-  // 注: このトピックの記事一覧は category='dx' かつ tags に 'AI' を含む記事をフィルタ表示
+  // 注: category='dx' かつ tags に 'AI' を含む記事をフィルタ表示
 }
 ```
 
-**運用方針**:
-- これら3つのトピックは削除不可（管理画面で保護）
-- 記事との紐付けは `TopicPost` テーブル経由で手動管理
-- `/topics/ai` では `category='dx' AND 'AI' IN tags` の記事を自動表示
-
-### **10.2 特集ハブページ**
-
-**URL:** `/topics/[slug]`
+### **10.2 カテゴリLPの構成**
 
 **構成:**
 - タイトル + 導入文（100-200字）
-- 「まず読む3本」（`TopicPost.isFeatured=true`）
-- 最新記事一覧（同特集内）
-- FAQ（`TopicFaq`）
-- 用語集（`TopicGlossary`）
-- 一次情報リンク
+- 注目記事3本（`isFeatured=true` の記事）
+- 最新記事一覧（該当カテゴリ、ページネーション付き）
 
-### **10.3 代表記事の選定**
+### **10.3 記事取得クエリ**
 
 ```typescript
-// lib/queries/topics.ts
-export async function getTopicWithPosts(slug: string) {
-  const topic = await db.topic.findUnique({
-    where: { slug },
-    include: {
-      posts: {
-        where: {
-          post: { status: 'published' },
-          isFeatured: true
-        },
-        take: 3,
-        orderBy: { displayOrder: 'asc' },
-        include: { post: true }
-      }
-    }
+// lib/queries/posts.ts
+export async function getPostsByCategory(category: string, page = 1, limit = 10) {
+  const where = category === 'ai'
+    ? { category: 'dx', tags: { has: 'AI' }, status: 'published' }
+    : { category, status: 'published' }
+
+  const [posts, total] = await Promise.all([
+    db.post.findMany({
+      where,
+      orderBy: { publishAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    db.post.count({ where })
+  ])
+
+  return { posts, total, pages: Math.ceil(total / limit) }
+}
+
+export async function getFeaturedPostsByCategory(category: string) {
+  const where = category === 'ai'
+    ? { category: 'dx', tags: { has: 'AI' }, status: 'published', isFeatured: true }
+    : { category, status: 'published', isFeatured: true }
+
+  return db.post.findMany({
+    where,
+    orderBy: { featuredOrder: 'asc' },
+    take: 3,
   })
-
-  // 3本未満の場合、最新記事で埋める
-  if (topic.posts.length < 3) {
-    const additional = await db.topicPost.findMany({
-      where: {
-        topicId: topic.id,
-        post: { status: 'published' },
-        isFeatured: false
-      },
-      take: 3 - topic.posts.length,
-      orderBy: { post: { publishedAt: 'desc' } },
-      include: { post: true }
-    })
-    topic.posts.push(...additional)
-  }
-
-  return topic
 }
 ```
 
@@ -1979,7 +1893,7 @@ export async function GET() {
 - [x] SNS リンク集
 
 ### **Sprint 2（コア機能、2週間）**
-- [x] Topics 機能
+- [x] カテゴリLP機能（/post/policy, /post/dx, /post/ai）
 - [x] 検索（PostgreSQL tsvector）
 - [x] コメント（承認制/即時切替）
 - [x] Resend 統合（DRY RUN）
@@ -2004,49 +1918,61 @@ export async function GET() {
 
 ### **15.1 グローバルナビゲーション構造**
 
-#### フラット構造 + 視覚的階層
+#### フラット構造 + 記号区切り
 
 ```
-記事 / 医療政策 / 実装（医療DX） / AI・データ活用 / 検索 / About
+記事 ＞ 医療政策 / 実装（医療DX） / AI・データ活用 ｜ 学習 ｜ 検索 ｜ About
 ```
 
 **視覚的階層の定義**:
-- **主軸**（濃色・標準フォント）: 記事、検索、About
-- **テーマ軸**（薄色・小さめフォント）: 医療政策、実装（医療DX）、AI・データ活用
+- **記事**: 全記事一覧へのエントリーポイント
+- **＞**: カテゴリLPグループの開始を示す記号
+- **テーマ軸**: 医療政策、実装（医療DX）、AI・データ活用（スラッシュ区切り）
+- **｜**: セクション区切り
+- **その他**: 学習、検索、About
 
 **Tailwind実装例**:
 ```tsx
-<nav className="flex items-center gap-6">
-  {/* 主軸 */}
-  <Link href="/news" className="text-gray-900 hover:text-black font-medium text-[15px]">
+<nav className="flex items-center gap-2">
+  {/* 記事グループ */}
+  <Link href="/post" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px">
     記事
   </Link>
-
-  {/* テーマ軸 */}
-  <Link href="/topics/policy" className="text-gray-500 hover:text-gray-800 text-[14px]">
+  <span className="text-neutral-400" style="font-size: 15px">＞</span>
+  <Link href="/post/policy" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px">
     医療政策
   </Link>
-  <Link href="/topics/dx" className="text-gray-500 hover:text-gray-800 text-[14px]">
+  <span className="text-neutral-400" style="font-size: 15px">/</span>
+  <Link href="/post/dx" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px">
     実装（医療DX）
   </Link>
-  <Link href="/topics/ai" className="text-gray-500 hover:text-gray-800 text-[14px]">
+  <span className="text-neutral-400" style="font-size: 15px">/</span>
+  <Link href="/post/ai" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px">
     AI・データ活用
   </Link>
 
-  {/* 主軸 */}
-  <Link href="/search" className="text-gray-900 hover:text-black font-medium text-[15px]">
+  {/* 区切り */}
+  <span className="text-neutral-400 mx-1" style="font-size: 15px">｜</span>
+
+  {/* その他 */}
+  <Link href="/learning" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px">
+    学習
+  </Link>
+  <span className="text-neutral-400 mx-1" style="font-size: 15px">｜</span>
+  <Link href="/search" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px">
     検索
   </Link>
-  <Link href="/about" className="text-gray-900 hover:text-black font-medium text-[15px]">
+  <span className="text-neutral-400 mx-1" style="font-size: 15px">｜</span>
+  <Link href="/about" className="px-3 py-2 font-medium text-neutral-900 hover:text-black hover:bg-neutral-100 transition-all" style="font-size: 15px">
     About
   </Link>
 </nav>
 ```
 
 **設計意図**:
-- UX: 一瞬で「主要機能」と「コンテンツテーマ」が識別可能
+- UX: 記号により「記事」を起点とした階層構造を視覚的に表現
 - SEO: すべてのリンクがトップ階層に存在し、クローラビリティ最大化
-- 拡張性: 将来カテゴリ追加時も視覚グループに追加するだけ
+- 学習ページ: 将来の拡張用に独立ページとして確保
 - モバイル: ハンバーガーメニュー内でも同じ順序を維持
 
 #### モバイルナビゲーション
@@ -2057,12 +1983,13 @@ export async function GET() {
   <SearchButton />
 
   {/* ハンバーガーメニュー内 */}
-  <NavLink href="/news" primary>記事</NavLink>
-  <NavDivider label="テーマ" />
-  <NavLink href="/topics/policy">医療政策</NavLink>
-  <NavLink href="/topics/dx">実装（医療DX）</NavLink>
-  <NavLink href="/topics/ai">AI・データ活用</NavLink>
+  <NavLink href="/post" primary>記事</NavLink>
+  <NavDivider label="カテゴリ" />
+  <NavLink href="/post/policy">医療政策</NavLink>
+  <NavLink href="/post/dx">実装（医療DX）</NavLink>
+  <NavLink href="/post/ai">AI・データ活用</NavLink>
   <NavDivider />
+  <NavLink href="/learning">学習</NavLink>
   <NavLink href="/about" primary>About</NavLink>
 </MobileNav>
 ```
@@ -2071,13 +1998,13 @@ export async function GET() {
 
 | URL | ページ | 説明 | revalidate |
 |-----|--------|------|------------|
-| `/` | トップ | Hero + 3テーマカード + 新着記事 | 900秒 |
-| `/news` | 記事一覧 | 全記事・カテゴリタブ付き | 900秒 |
-| `/topics` | 特集ハブ | 3テーマの紹介カード | 1800秒 |
-| `/topics/policy` | 医療政策LP | 導入文 + 記事一覧 | 900秒 |
-| `/topics/dx` | 医療DX LP | 導入文 + 記事一覧 | 900秒 |
-| `/topics/ai` | AI LP | 導入文 + dx+AIタグ記事 | 900秒 |
-| `/news/[slug]` | 記事詳細 | ペイウォール対応 | 900秒 |
+| `/` | トップ | Hero + カテゴリカード + 新着記事 | 900秒 |
+| `/post` | 記事一覧 | 全記事・カテゴリタブ付き | 900秒 |
+| `/post/policy` | 医療政策LP | 導入文 + 注目記事3本 + 記事一覧 | 900秒 |
+| `/post/dx` | 医療DX LP | 導入文 + 注目記事3本 + 記事一覧 | 900秒 |
+| `/post/ai` | AI LP | 導入文 + dx+AIタグ記事一覧 | 900秒 |
+| `/post/[slug]` | 記事詳細 | ペイウォール対応 | 900秒 |
+| `/learning` | 学習 | 学習リソース（将来実装） | 3600秒 |
 | `/search` | 検索 | 全文検索（noindex） | - |
 | `/about` | About | サイト概要 | 3600秒 |
 
@@ -2129,7 +2056,7 @@ export function CategoryChip({ category }: { category: 'policy' | 'dx' | 'other'
 記事詳細ページでのパンくず例:
 
 ```
-Home > 特集 > 医療政策 > 今週の医療政策まとめ（第41週）
+Home > 記事 > 医療政策 > 今週の医療政策まとめ（第41週）
 ```
 
 構造化データ（BreadcrumbList）も同時出力:
@@ -2139,8 +2066,8 @@ Home > 特集 > 医療政策 > 今週の医療政策まとめ（第41週）
   "@type": "BreadcrumbList",
   "itemListElement": [
     { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://example.com/" },
-    { "@type": "ListItem", "position": 2, "name": "特集", "item": "https://example.com/topics" },
-    { "@type": "ListItem", "position": 3, "name": "医療政策", "item": "https://example.com/topics/policy" },
+    { "@type": "ListItem", "position": 2, "name": "記事", "item": "https://example.com/post" },
+    { "@type": "ListItem", "position": 3, "name": "医療政策", "item": "https://example.com/post/policy" },
     { "@type": "ListItem", "position": 4, "name": "今週の医療政策まとめ（第41週）" }
   ]
 }
