@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ===== Core Models =====
@@ -20,6 +21,8 @@ model Post {
   summary  String?
   category String   @default("other") // 'policy' | 'dx' | 'other'
   tags     String[]
+
+  headerImageUrl String?  // Header/featured image URL
 
   publishAt DateTime?
   status    String   @default("draft") // 'draft' | 'scheduled' | 'published'
@@ -52,8 +55,8 @@ model Post {
   @@index([isFeatured, featuredOrder])
   @@index([category])
   @@index([tags])
-  @@index([searchVector], type: Gin)
-  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+  // @@index([searchVector], type: Gin)  // Disabled for now, will add manually after pg_trgm installation
+  // @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)  // Requires pg_trgm extension
 }
 
 model ArticleAlias {
@@ -121,10 +124,102 @@ model Plan {
 }
 
 model Entitlement {
-  id        String    @id @default(uuid())
-  userId    String
-  planId    String?
+  id               String    @id @default(uuid())
+  userId           String
+  kind             String    // 'ppv' | 'sub'
+  postId           String?   // PPVの時のみ
+  source           String    // 'stripe' | 'manual'
+  status           String    @default("active") // 'active' | 'cancelled' | 'past_due'
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  stripeSubscriptionId String? @unique
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, kind, postId])
+  @@index([stripeSubscriptionId])
+}
+
+model SiteSettings {
+  id Int @id @default(1)
+
+  siteTitle String @default("Fuyuto Web")
+
+  // Comment settings
+  commentMode String @default("pre_moderation") // 'pre_moderation' | 'post_moderation'
+
+  // Payment settings
+  currency        String  @default("JPY")
+  taxInclusive    Boolean @default(true)
+  defaultPriceJpy Int?
+  paywallDefaultMode String @default("marker")
+
+  // Featured posts
+  featuredMax Int @default(4)
+
+  // SNS Links
+  snsTwitter   String @default("")
+  snsLinkedin  String @default("")
+  snsLine      String @default("")
+  snsInstagram String @default("")
+  snsYoutube   String @default("")
+  snsTiktok    String @default("")
+  snsFacebook  String @default("")
+
+  updatedAt DateTime @updatedAt
+}
+
+// ===== API Keys =====
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  name        String
+  key         String    @unique
+  isActive    Boolean   @default(true)
+  createdBy   String?   // User identifier for tracking who created this API key
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  usageCount  Int       @default(0)
+
+  @@index([key])
+  @@index([isActive])
+}
+
+// ===== Payment & Idempotency =====
+
+model Payment {
+  id        String   @id @default(uuid())
+  provider  String   // 'stripe'
+  extId     String?  @unique
+  amountJpy Int?
+  currency  String?  // 'jpy'
+  status    String   // 'created' | 'succeeded' | 'failed' | 'refunded'
+  meta      Json?
+  userId    String?
   postId    String?
-  expiresAt DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+model IdempotencyKey {
+  key       String   @id
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// ===== Email Events =====
+
+model EmailEvent {
+  id        String   @id @default(uuid())
+  type      String   // 'requested' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'complained'
+  toMasked  String
+  messageId String?  @unique
+  dryRun    Boolean  @default(true)
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([messageId])
 }
