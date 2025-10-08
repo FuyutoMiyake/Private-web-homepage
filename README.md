@@ -1014,6 +1014,23 @@ MIT License - 詳細は `LICENSE` ファイル参照
 
 ---
 
+## 🔧 トラブルシューティング
+
+問題が発生した場合は、以下のドキュメントを参照してください：
+
+- **[トラブルシューティングガイド](docs/TROUBLESHOOTING.md)** - よくある問題と解決方法
+- **[.claude/troubleshooting.md](.claude/troubleshooting.md)** - AI参照用の簡潔なガイド
+
+### よくある問題
+
+#### 画像が表示されない
+
+Next.js Imageコンポーネントを使用している場合、`next.config.js`の`remotePatterns`に画像ドメインを追加する必要があります。
+
+詳細は [トラブルシューティングガイド](docs/TROUBLESHOOTING.md#nextjs-image最適化エラー) を参照。
+
+---
+
 ## 🎯 ロードマップ
 
 ### **Sprint 1（完了）**
