@@ -3,6 +3,9 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 3600
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
@@ -46,19 +49,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/post/policy`,
+      url: `${baseUrl}/post/category/policy`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/post/dx`,
+      url: `${baseUrl}/post/category/dx`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/post/ai`,
+      url: `${baseUrl}/post/category/ai`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.8,
