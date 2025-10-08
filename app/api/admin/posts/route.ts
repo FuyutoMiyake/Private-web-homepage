@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyApiKey } from '@/lib/api-auth'
+import { generateHeaderImage } from '@/lib/image-generator'
 
 // POST: 新規記事作成
 export async function POST(req: NextRequest) {
@@ -45,6 +46,26 @@ export async function POST(req: NextRequest) {
     // Determine createdBy: use API key's createdBy, or fallback to API key name
     const createdBy = apiKeyInfo.createdBy || apiKeyInfo.name
 
+    // Auto-generate header image if not provided and feature is enabled
+    let finalHeaderImageUrl = headerImageUrl || null
+    if (!finalHeaderImageUrl) {
+      const settings = await db.siteSettings.findUnique({
+        where: { id: 1 },
+        select: { autoGenerateImages: true }
+      })
+
+      if (settings?.autoGenerateImages) {
+        console.log('Auto-generating header image with 2-stage flow (Claude + Gemini)...')
+        const generatedUrl = await generateHeaderImage(title, summary, postBody)
+        if (generatedUrl) {
+          finalHeaderImageUrl = generatedUrl
+          console.log('Header image generated successfully:', generatedUrl)
+        } else {
+          console.warn('Failed to generate header image, proceeding without one')
+        }
+      }
+    }
+
     const post = await db.post.create({
       data: {
         slug,
@@ -55,7 +76,7 @@ export async function POST(req: NextRequest) {
         tags: tags || [],
         status: status || 'draft',
         publishAt: publishAt ? new Date(publishAt) : null,
-        headerImageUrl: headerImageUrl || null,
+        headerImageUrl: finalHeaderImageUrl,
         paywallEnabled: paywallEnabled ?? false,
         freeMode: freeMode || 'chars',
         freeChars: freeChars ?? 300,

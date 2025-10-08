@@ -16,6 +16,7 @@ type SettingsFormProps = {
     snsFacebook: string
     paywallDefaultMode: string
     commentMode: string
+    autoGenerateImages: boolean
   }
 }
 
@@ -27,7 +28,8 @@ export function SettingsForm({ settings }: SettingsFormProps) {
     snsTwitter: settings.snsTwitter,
     snsLinkedin: settings.snsLinkedin,
     paywallDefaultMode: settings.paywallDefaultMode,
-    commentMode: settings.commentMode
+    commentMode: settings.commentMode,
+    autoGenerateImages: settings.autoGenerateImages
   })
 
   const handleSubmit = async (e: FormEvent) => {
@@ -40,7 +42,8 @@ export function SettingsForm({ settings }: SettingsFormProps) {
         snsTwitter: formData.snsTwitter,
         snsLinkedin: formData.snsLinkedin,
         paywallDefaultMode: formData.paywallDefaultMode,
-        commentMode: formData.commentMode
+        commentMode: formData.commentMode,
+        autoGenerateImages: formData.autoGenerateImages
       }
 
       const res = await fetch('/api/admin/settings', {
@@ -170,6 +173,32 @@ export function SettingsForm({ settings }: SettingsFormProps) {
               ? 'コメントは管理者が承認するまで表示されません'
               : 'コメントは即時公開され、後で管理者が確認します'}
           </p>
+        </div>
+      </div>
+
+      {/* Image Generation Settings */}
+      <div className="bg-white p-6 rounded-lg border border-gray-200">
+        <h2 className="text-lg font-semibold mb-4">画像生成設定</h2>
+
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.autoGenerateImages}
+              onChange={(e) =>
+                setFormData({ ...formData, autoGenerateImages: e.target.checked })
+              }
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-700">
+                ヘッダー画像の自動生成を有効にする
+              </span>
+              <p className="text-sm text-gray-500 mt-1">
+                記事作成時にヘッダー画像が指定されていない場合、AI（Gemini 2.5 Flash Image）を使用して自動的に画像を生成します。
+              </p>
+            </div>
+          </label>
         </div>
       </div>
 

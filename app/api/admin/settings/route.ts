@@ -10,7 +10,8 @@ export async function PUT(req: NextRequest) {
       snsTwitter,
       snsLinkedin,
       paywallDefaultMode,
-      commentMode
+      commentMode,
+      autoGenerateImages
     } = body
 
     const settings = await db.siteSettings.upsert({
@@ -20,7 +21,8 @@ export async function PUT(req: NextRequest) {
         snsTwitter,
         snsLinkedin,
         paywallDefaultMode,
-        commentMode
+        commentMode,
+        autoGenerateImages
       },
       create: {
         id: 1,
@@ -28,7 +30,8 @@ export async function PUT(req: NextRequest) {
         snsTwitter,
         snsLinkedin,
         paywallDefaultMode,
-        commentMode
+        commentMode,
+        autoGenerateImages
       }
     })
 

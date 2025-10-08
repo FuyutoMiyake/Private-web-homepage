@@ -8,6 +8,7 @@ import CommentSection from '@/components/comments/CommentSection'
 import { buildNewsArticleSchema, buildBreadcrumbSchema } from '@/lib/seo/structuredData'
 import type { Metadata } from 'next'
 import rehypeSlug from 'rehype-slug'
+import remarkGfm from 'remark-gfm'
 
 type Props = {
   params: { slug: string }
@@ -175,6 +176,7 @@ export default async function PostDetailPage({ params }: Props) {
               components={MDXComponents}
               options={{
                 mdxOptions: {
+                  remarkPlugins: [remarkGfm],
                   rehypePlugins: [rehypeSlug]
                 }
               }}
@@ -227,6 +229,7 @@ export default async function PostDetailPage({ params }: Props) {
                   components={MDXComponents}
                   options={{
                     mdxOptions: {
+                      remarkPlugins: [remarkGfm],
                       rehypePlugins: [rehypeSlug]
                     }
                   }}

@@ -156,6 +156,9 @@ model SiteSettings {
   // Featured posts
   featuredMax Int @default(4)
 
+  // Image generation
+  autoGenerateImages Boolean @default(false)
+
   // SNS Links
   snsTwitter   String @default("")
   snsLinkedin  String @default("")

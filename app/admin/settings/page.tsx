@@ -13,7 +13,8 @@ export default async function SettingsPage() {
         id: 1,
         siteTitle: 'Fuyuto Web',
         commentMode: 'pre_moderation',
-        paywallDefaultMode: 'marker'
+        paywallDefaultMode: 'marker',
+        autoGenerateImages: false
       }
     })
   }
