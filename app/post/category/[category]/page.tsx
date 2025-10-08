@@ -3,63 +3,72 @@ import Link from 'next/link'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
-export const metadata: Metadata = {
-  title: '記事一覧 - Fuyuto Web',
-  description: '医療政策・医療DX・AI活用に関する記事一覧'
-}
-
 // ISR: 1時間ごとに再生成
 export const revalidate = 3600
 
 const POSTS_PER_PAGE = 20
 
-// 静的に生成するページを指定
+const categories = [
+  { key: 'all', label: 'すべて' },
+  { key: 'policy', label: '医療政策' },
+  { key: 'dx', label: '実装（医療DX）' },
+  { key: 'ai', label: 'AI・データ活用' }
+]
+
+// 静的に生成するカテゴリを指定
 export async function generateStaticParams() {
-  const totalCount = await db.post.count({
-    where: { status: 'published' }
-  })
-  const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE)
-
-  // 最初の5ページを静的生成
-  const pages = Array.from({ length: Math.min(totalPages, 5) }, (_, i) => ({
-    page: String(i + 2) // 2ページ目から5ページ目まで
-  }))
-
-  return pages
+  return [
+    { category: 'policy' },
+    { category: 'dx' },
+    { category: 'ai' }
+  ]
 }
 
-export default async function PostListPageWithNumber({
+// 動的メタデータ
+export async function generateMetadata({
   params
 }: {
-  params: { page: string }
-}) {
-  const currentPage = parseInt(params.page, 10)
+  params: { category: string }
+}): Promise<Metadata> {
+  const category = categories.find((c) => c.key === params.category)
+  const categoryLabel = category?.label || '記事一覧'
 
-  // 無効なページ番号の場合は404
-  if (isNaN(currentPage) || currentPage < 2) {
+  return {
+    title: `${categoryLabel} - Fuyuto Web`,
+    description: `${categoryLabel}に関する記事一覧`
+  }
+}
+
+export default async function CategoryPostListPage({
+  params
+}: {
+  params: { category: string }
+}) {
+  const categoryFilter = params.category
+
+  // 有効なカテゴリか確認
+  if (!['policy', 'dx', 'ai'].includes(categoryFilter)) {
     notFound()
   }
 
+  const currentPage = 1
   const skip = (currentPage - 1) * POSTS_PER_PAGE
 
-  // 総記事数を取得（すべてのカテゴリ）
+  // 総記事数を取得
   const totalCount = await db.post.count({
     where: {
-      status: 'published'
+      status: 'published',
+      category: categoryFilter
     }
   })
 
   const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE)
 
-  // ページ番号が範囲外の場合は404
-  if (currentPage > totalPages) {
-    notFound()
-  }
-
-  // ページネーション付きで記事を取得（すべてのカテゴリ）
+  // ページネーション付きで記事を取得
   const posts = await db.post.findMany({
     where: {
-      status: 'published'
+      status: 'published',
+      category: categoryFilter
     },
     orderBy: { publishAt: 'desc' },
     select: {
@@ -74,17 +83,14 @@ export default async function PostListPageWithNumber({
     take: POSTS_PER_PAGE
   })
 
-  const categories = [
-    { key: 'all', label: 'すべて' },
-    { key: 'policy', label: '医療政策' },
-    { key: 'dx', label: '実装（医療DX）' },
-    { key: 'ai', label: 'AI・データ活用' }
-  ]
-
   // URLヘルパー関数
-  const getPageUrl = (page: number) => {
-    if (page === 1) return '/post'
-    return `/post/page/${page}`
+  const getPageUrl = (page: number, cat: string) => {
+    if (cat === 'all') {
+      if (page === 1) return '/post'
+      return `/post/page/${page}`
+    }
+    if (page === 1) return `/post/category/${cat}`
+    return `/post/category/${cat}/page/${page}`
   }
 
   return (
@@ -101,7 +107,7 @@ export default async function PostListPageWithNumber({
               className={`
                 whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
                 ${
-                  cat.key === 'all'
+                  categoryFilter === cat.key
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }
@@ -172,7 +178,7 @@ export default async function PostListPageWithNumber({
           {/* 前へボタン */}
           {currentPage > 1 ? (
             <Link
-              href={getPageUrl(currentPage - 1)}
+              href={getPageUrl(currentPage - 1, categoryFilter)}
               className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               前へ
@@ -213,7 +219,7 @@ export default async function PostListPageWithNumber({
               return (
                 <Link
                   key={page}
-                  href={getPageUrl(page)}
+                  href={getPageUrl(page, categoryFilter)}
                   className={`px-4 py-2 rounded-md text-sm font-medium ${
                     page === currentPage
                       ? 'bg-blue-600 text-white'
@@ -229,7 +235,7 @@ export default async function PostListPageWithNumber({
           {/* 次へボタン */}
           {currentPage < totalPages ? (
             <Link
-              href={getPageUrl(currentPage + 1)}
+              href={getPageUrl(currentPage + 1, categoryFilter)}
               className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               次へ

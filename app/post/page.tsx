@@ -12,30 +12,23 @@ export const revalidate = 3600
 
 const POSTS_PER_PAGE = 20
 
-export default async function PostListPage({
-  searchParams
-}: {
-  searchParams: { category?: string }
-}) {
-  const categoryFilter = searchParams.category || 'all'
+export default async function PostListPage() {
   const currentPage = 1 // 常に1ページ目
   const skip = (currentPage - 1) * POSTS_PER_PAGE
 
-  // 総記事数を取得
+  // 総記事数を取得（すべてのカテゴリ）
   const totalCount = await db.post.count({
     where: {
-      status: 'published',
-      ...(categoryFilter !== 'all' && { category: categoryFilter })
+      status: 'published'
     }
   })
 
   const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE)
 
-  // ページネーション付きで記事を取得
+  // ページネーション付きで記事を取得（すべてのカテゴリ）
   const posts = await db.post.findMany({
     where: {
-      status: 'published',
-      ...(categoryFilter !== 'all' && { category: categoryFilter })
+      status: 'published'
     },
     orderBy: { publishAt: 'desc' },
     select: {
@@ -59,10 +52,8 @@ export default async function PostListPage({
 
   // URLヘルパー関数
   const getPageUrl = (page: number) => {
-    if (page === 1) {
-      return `/post${categoryFilter !== 'all' ? `?category=${categoryFilter}` : ''}`
-    }
-    return `/post/page/${page}${categoryFilter !== 'all' ? `?category=${categoryFilter}` : ''}`
+    if (page === 1) return '/post'
+    return `/post/page/${page}`
   }
 
   return (
@@ -75,11 +66,11 @@ export default async function PostListPage({
           {categories.map((cat) => (
             <Link
               key={cat.key}
-              href={cat.key === 'all' ? '/post' : `/post?category=${cat.key}`}
+              href={cat.key === 'all' ? '/post' : `/post/category/${cat.key}`}
               className={`
                 whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
                 ${
-                  categoryFilter === cat.key
+                  cat.key === 'all'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }
