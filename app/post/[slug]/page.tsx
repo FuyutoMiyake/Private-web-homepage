@@ -8,7 +8,6 @@ import CommentSection from '@/components/comments/CommentSection'
 import { buildNewsArticleSchema, buildBreadcrumbSchema } from '@/lib/seo/structuredData'
 import type { Metadata } from 'next'
 import rehypeSlug from 'rehype-slug'
-import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 
 type Props = {
   params: { slug: string }
@@ -176,10 +175,7 @@ export default async function PostDetailPage({ params }: Props) {
               components={MDXComponents}
               options={{
                 mdxOptions: {
-                  rehypePlugins: [
-                    rehypeSlug,
-                    [rehypeAutolinkHeadings, { behavior: 'wrap' }]
-                  ]
+                  rehypePlugins: [rehypeSlug]
                 }
               }}
             />
@@ -231,10 +227,7 @@ export default async function PostDetailPage({ params }: Props) {
                   components={MDXComponents}
                   options={{
                     mdxOptions: {
-                      rehypePlugins: [
-                        rehypeSlug,
-                        [rehypeAutolinkHeadings, { behavior: 'wrap' }]
-                      ]
+                      rehypePlugins: [rehypeSlug]
                     }
                   }}
                 />
