@@ -13,20 +13,8 @@ export const revalidate = 3600
 
 const POSTS_PER_PAGE = 20
 
-// 静的に生成するページを指定
-export async function generateStaticParams() {
-  const totalCount = await db.post.count({
-    where: { status: 'published' }
-  })
-  const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE)
-
-  // 最初の5ページを静的生成
-  const pages = Array.from({ length: Math.min(totalPages, 5) }, (_, i) => ({
-    page: String(i + 2) // 2ページ目から5ページ目まで
-  }))
-
-  return pages
-}
+// 動的レンダリングを無効化し、ISRのみを使用
+export const dynamicParams = true
 
 export default async function PostListPageWithNumber({
   params

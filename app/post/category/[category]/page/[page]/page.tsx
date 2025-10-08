@@ -15,25 +15,8 @@ const categories = [
   { key: 'ai', label: 'AI・データ活用' }
 ]
 
-// 静的に生成するページを指定
-export async function generateStaticParams() {
-  const validCategories = ['policy', 'dx', 'ai']
-  const params = []
-
-  // 各カテゴリの最初の3ページを静的生成
-  for (const category of validCategories) {
-    const totalCount = await db.post.count({
-      where: { status: 'published', category }
-    })
-    const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE)
-
-    for (let page = 2; page <= Math.min(totalPages, 4); page++) {
-      params.push({ category, page: String(page) })
-    }
-  }
-
-  return params
-}
+// 動的レンダリングを無効化し、ISRのみを使用
+export const dynamicParams = true
 
 // 動的メタデータ
 export async function generateMetadata({

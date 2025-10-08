@@ -15,6 +15,9 @@ const categories = [
   { key: 'ai', label: 'AI・データ活用' }
 ]
 
+// 動的レンダリングを無効化し、ISRのみを使用
+export const dynamicParams = true
+
 // 静的に生成するカテゴリを指定
 export async function generateStaticParams() {
   return [
