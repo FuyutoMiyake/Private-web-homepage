@@ -2,7 +2,24 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['localhost', 'placehold.co'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+      },
+    ],
+  },
+  webpack: (config, { isServer }) => {
+    // Exclude supabase functions directory from build
+    config.watchOptions = {
+      ...config.watchOptions,
+      ignored: ['**/supabase/**', '**/node_modules/**'],
+    }
+    return config
   },
 }
 

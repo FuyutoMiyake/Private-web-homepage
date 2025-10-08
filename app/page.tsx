@@ -1,8 +1,30 @@
 import { CategoryCards } from '@/components/home/CategoryCards'
 import { FeaturedPosts } from '@/components/home/FeaturedPosts'
 import { ScrollAnimation } from '@/components/ScrollAnimation'
+import { db } from '@/lib/db'
 
-export default function HomePage() {
+export default async function HomePage() {
+  const rawPosts = await db.post.findMany({
+    where: {
+      status: 'published',
+    },
+    orderBy: { publishAt: 'desc' },
+    select: {
+      slug: true,
+      title: true,
+      summary: true,
+      publishAt: true,
+      tags: true,
+      isFeatured: true,
+    },
+  })
+
+  // Serialize dates for client-side hydration
+  const posts = rawPosts.map(post => ({
+    ...post,
+    publishAt: post.publishAt ? post.publishAt : null,
+  }))
+
   return (
     <main>
       <ScrollAnimation />
@@ -27,7 +49,7 @@ export default function HomePage() {
       </div>
 
       {/* Featured Posts Section */}
-      <FeaturedPosts />
+      <FeaturedPosts posts={posts} />
 
       {/* Category Cards Section */}
       <section className="py-12 lg:py-16 bg-neutral-50">
