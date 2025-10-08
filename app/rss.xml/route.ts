@@ -3,7 +3,6 @@ import { db } from '@/lib/db'
 import { split } from '@/lib/paywall'
 import { excerptFromPreview } from '@/lib/excerpt'
 
-export const dynamic = 'force-dynamic'
 export const revalidate = 3600
 
 export async function GET() {

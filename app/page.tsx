@@ -3,7 +3,6 @@ import { FeaturedPosts } from '@/components/home/FeaturedPosts'
 import { ScrollAnimation } from '@/components/ScrollAnimation'
 import { db } from '@/lib/db'
 
-export const dynamic = 'force-dynamic'
 export const revalidate = 3600
 
 export default async function HomePage() {
