@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import Link from 'next/link'
 import { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 
 export const metadata: Metadata = {
   title: '記事一覧 - Fuyuto Web',
@@ -12,13 +13,36 @@ export const revalidate = 3600
 
 const POSTS_PER_PAGE = 20
 
-export default async function PostListPage({
+// 静的に生成するページを指定
+export async function generateStaticParams() {
+  const totalCount = await db.post.count({
+    where: { status: 'published' }
+  })
+  const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE)
+
+  // 最初の5ページを静的生成
+  const pages = Array.from({ length: Math.min(totalPages, 5) }, (_, i) => ({
+    page: String(i + 2) // 2ページ目から5ページ目まで
+  }))
+
+  return pages
+}
+
+export default async function PostListPageWithNumber({
+  params,
   searchParams
 }: {
+  params: { page: string }
   searchParams: { category?: string }
 }) {
+  const currentPage = parseInt(params.page, 10)
+
+  // 無効なページ番号の場合は404
+  if (isNaN(currentPage) || currentPage < 2) {
+    notFound()
+  }
+
   const categoryFilter = searchParams.category || 'all'
-  const currentPage = 1 // 常に1ページ目
   const skip = (currentPage - 1) * POSTS_PER_PAGE
 
   // 総記事数を取得
@@ -30,6 +54,11 @@ export default async function PostListPage({
   })
 
   const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE)
+
+  // ページ番号が範囲外の場合は404
+  if (currentPage > totalPages) {
+    notFound()
+  }
 
   // ページネーション付きで記事を取得
   const posts = await db.post.findMany({
